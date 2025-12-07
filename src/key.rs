@@ -13,57 +13,51 @@ use sha2::{Digest, Sha256};
 ///
 /// @Description: 密钥对工具
 #[derive(Debug, Clone)]
-pub struct Keypair {
-    secret_key: SecretKey,
-    public_key: PublicKey,
-}
+#[allow(dead_code)]
+pub struct Keypair(SecretKey, PublicKey);
 
 impl Keypair {
     // 随机生成一个密钥对，返回Keypair结构体
+    #[allow(dead_code)]
     pub fn new() -> Self {
         let secp = Secp256k1::<All>::new();
-        let (secret_key, public_key) = secp.generate_keypair(&mut rand::thread_rng());
-        Self {
-            secret_key,
-            public_key,
-        }
+        let (secret_key, public_key) = secp.generate_keypair(&mut rand::rng());
+        Self(secret_key, public_key)
     }
 
     // 从私钥创建一个密钥对，返回Keypair
+    #[allow(dead_code)]
     pub fn from_sk(secret_key: SecretKey) -> Self {
         let secp = Secp256k1::<All>::new();
         let public_key = secret_key.public_key(&secp);
-        Keypair {
-            secret_key,
-            public_key,
-        }
+        Keypair(secret_key, public_key)
     }
 
     // 从私钥字符串创建一个密钥对，返回keypair
+    #[allow(dead_code)]
     pub fn from_sk_hex(secret_key_hex: &str) -> Self {
         let mut secret_key_bytes = [0u8; 32];
         hex::decode_to_slice(secret_key_hex, &mut secret_key_bytes).unwrap();
         let secret_key: SecretKey = SecretKey::from_byte_array(secret_key_bytes).unwrap();
         let secp = Secp256k1::<All>::new();
         let public_key = secret_key.public_key(&secp);
-        Self {
-            secret_key,
-            public_key,
-        }
+        Self(secret_key, public_key)
     }
     // 获取公钥(十六进制字符串)
+    #[allow(dead_code)]
     pub fn get_public_key(&self) -> String {
-        hex::encode(self.public_key.serialize())
+        hex::encode(self.1.serialize())
     }
     // 获取私钥(十六进制字符串)
+    #[allow(dead_code)]
     pub fn get_secret_key(&self) -> String {
-        hex::encode(self.secret_key.secret_bytes())
+        hex::encode(self.0.secret_bytes())
     }
 
     // 生成比特币地址：地址=版本号+双哈希+校验码
+    #[allow(dead_code)]
     pub fn to_address(&self) -> String {
-        let x = 1;
-        let pk = self.public_key.serialize(); //公钥
+        let pk = self.1.serialize(); //公钥
         let sha256 = Sha256::digest(pk); //公钥第一次哈希
         let ripemd160 = Ripemd160::digest(sha256); //公钥第二次哈希
         let mut payload = Vec::with_capacity(1 + 20 + 4); //负载=版本号+双哈希+校验码
@@ -77,14 +71,16 @@ impl Keypair {
 }
 
 // 使用私钥进行签名，返回数字签名Signature
+#[allow(dead_code)]
 pub fn sign(keypair: &Keypair, content: &[u8]) -> Signature {
     let secp = Secp256k1::<All>::new();
     let digest = sha256::Hash::hash(content);
     let message = Message::from_digest(digest.to_byte_array());
-    secp.sign_ecdsa(message, &keypair.secret_key)
+    secp.sign_ecdsa(message, &keypair.0)
 }
 
 // 验证签名，返回是否验证成功
+#[allow(dead_code)]
 pub fn verify(content: &[u8], public_key: &PublicKey, sig: &Signature) -> bool {
     let secp = Secp256k1::<All>::new();
     let digest = sha256::Hash::hash(content);
@@ -100,15 +96,15 @@ mod tests {
     fn test_keypair_creation() {
         let keypair = Keypair::new();
         // 将私钥转换为字节数组进行检查
-        let secret_bytes = keypair.secret_key.secret_bytes();
+        let secret_bytes = keypair.0.secret_bytes();
         assert!(!secret_bytes.iter().all(|&x| x == 0));
     }
 
     #[test]
     fn test_keypair_from_secret() {
         let keypair1 = Keypair::new();
-        let keypair2 = Keypair::from_sk(keypair1.secret_key);
-        assert_eq!(keypair1.public_key, keypair2.public_key);
+        let keypair2 = Keypair::from_sk(keypair1.0);
+        assert_eq!(keypair1.1, keypair2.1);
     }
 
     #[test]
@@ -116,7 +112,7 @@ mod tests {
         let keypair = Keypair::new();
         let message = b"Hello, world!";
         let signature = sign(&keypair, message);
-        assert!(verify(message, &keypair.public_key, &signature));
+        assert!(verify(message, &keypair.1, &signature));
     }
 
     #[test]
@@ -125,7 +121,7 @@ mod tests {
         let keypair2 = Keypair::new();
         let message = b"Hello, world!";
         let signature = sign(&keypair1, message);
-        assert!(!verify(message, &keypair2.public_key, &signature));
+        assert!(!verify(message, &keypair2.1, &signature));
     }
 
     #[test]
@@ -133,11 +129,7 @@ mod tests {
         let keypair = Keypair::new();
         let message = b"Hello, world!";
         let signature = sign(&keypair, message);
-        assert!(!verify(
-            b"Modified message",
-            &keypair.public_key,
-            &signature
-        ));
+        assert!(!verify(b"Modified message", &keypair.1, &signature));
     }
 
     #[test]
@@ -167,7 +159,7 @@ mod tests {
         println!("public_key:{:?}", public_key);
 
         let sig = sign(&keypair, b"Hello,world!");
-        let ok: bool = verify(b"Hello,world!", &keypair.public_key, &sig);
+        let ok: bool = verify(b"Hello,world!", &keypair.1, &sig);
         assert!(ok);
         println!("sig: {:?}", hex::encode(sig.serialize_compact()));
         println!("ok: {:?}", ok);
@@ -192,7 +184,7 @@ mod tests {
         );
 
         let sig = sign(&keypair, b"Hello, world!");
-        let ok = verify(b"Hello, world!", &keypair.public_key, &sig);
+        let ok = verify(b"Hello, world!", &keypair.1, &sig);
         // println!("sig: {:?}", hex::decode(sig.serialize_compact()).unwrap());
         println!("ok: {:?}", ok);
     }
