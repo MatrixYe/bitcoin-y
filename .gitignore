@@ -8,6 +8,7 @@
 # IDE configuration
 .idea/
 .vscode/
+.trae/
 *.swp
 *.swo
 *~
