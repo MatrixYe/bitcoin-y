@@ -1,0 +1,4 @@
+# 关闭未使用函数/方法警告
+disable = ["unused_functions", "unused_methods"]
+# 可选：关闭其他unused警告
+# disable = ["unused_functions", "unused_variables"]
