@@ -1,10 +1,10 @@
-use crate::errors::KeyPairError;
+use crate::errors::CError;
 use hex;
 use ripemd::Ripemd160;
 use secp256k1::ecdsa::Signature;
-use secp256k1::hashes::{Hash, sha256};
+use secp256k1::hashes::{sha256, Hash};
+use secp256k1::{rand, PublicKey, SecretKey};
 use secp256k1::{All, Message, Secp256k1};
-use secp256k1::{PublicKey, SecretKey, rand};
 use sha2::{Digest, Sha256};
 /// @Name key.rs
 ///
@@ -31,12 +31,10 @@ impl KeyPair {
         }
     }
 
-    // 获取公钥(十六进制字符串)
     #[allow(dead_code)]
     pub fn get_public_key(&self) -> String {
         hex::encode(self.public_key.serialize())
     }
-    // 获取私钥(十六进制字符串)
     #[allow(dead_code)]
     pub fn get_secret_key(&self) -> String {
         hex::encode(self.secret_key.secret_bytes())
@@ -57,13 +55,14 @@ impl KeyPair {
 
         payload.extend_from_slice(ripemd160.as_slice()); //添加公钥双哈希
 
-        let checksum = Sha256::digest(Sha256::digest(&payload)); //取前4字节作为校验码
+        let checksum = Sha256::digest(Sha256::digest(&payload)); //取前4个字节作为校验码
 
         payload.extend_from_slice(&checksum[..4]);
         bs58::encode(payload).into_string() //base58编码
     }
 }
 
+// SecretKey ==> KeyPair
 impl From<SecretKey> for KeyPair {
     fn from(secret_key: SecretKey) -> Self {
         let secp = Secp256k1::<All>::new();
@@ -74,44 +73,45 @@ impl From<SecretKey> for KeyPair {
         }
     }
 }
-
+// &str ==> KeyPair
 impl TryFrom<&str> for KeyPair {
-    type Error = KeyPairError;
+    type Error = CError;
 
     fn try_from(secret_key_hex: &str) -> Result<Self, Self::Error> {
         if secret_key_hex.len() != 64 {
-            return Err(KeyPairError::InvalidHexLength(secret_key_hex.len() as u32));
+            return Err(CError::InvalidHexLength(64, secret_key_hex.len() as u32));
         }
         let mut secret_key_bytes = [0u8; 32];
         hex::decode_to_slice(secret_key_hex, &mut secret_key_bytes)
-            .map_err(|_| KeyPairError::InvalidHexLength(secret_key_hex.len() as u32))?;
+            .map_err(|_| CError::InvalidHexLength(64, secret_key_hex.len() as u32))?;
 
-        let secret_key: SecretKey = SecretKey::from_byte_array(secret_key_bytes)
-            .map_err(|_| KeyPairError::InvalidSecretKey)?;
+        let secret_key: SecretKey =
+            SecretKey::from_byte_array(secret_key_bytes).map_err(|_| CError::InvalidSecretKey)?;
 
         Ok(secret_key.into())
     }
 }
 
+// String ==> KeyPair
 impl TryFrom<String> for KeyPair {
-    type Error = KeyPairError;
+    type Error = CError;
 
     fn try_from(secret_key_hex: String) -> Result<Self, Self::Error> {
         secret_key_hex.as_str().try_into()
     }
 }
-
+// [u8; 32] ==> KeyPair
 impl TryFrom<[u8; 32]> for KeyPair {
-    type Error = KeyPairError;
+    type Error = CError;
 
-    fn try_from(secret_key_bytes: [u8; 32]) -> Result<Self, KeyPairError> {
-        let secret_key: SecretKey = SecretKey::from_byte_array(secret_key_bytes)
-            .map_err(|_| KeyPairError::InvalidSecretKey)?;
+    fn try_from(secret_key_bytes: [u8; 32]) -> Result<Self, Self::Error> {
+        let secret_key: SecretKey =
+            SecretKey::from_byte_array(secret_key_bytes).map_err(|_| CError::InvalidSecretKey)?;
         Ok(secret_key.into())
     }
 }
 
-// 使用私钥进行签名，返回数字签名Signature
+// 对内容进行签名，返回数字签名Signature
 #[allow(dead_code)]
 pub fn sign(keypair: &KeyPair, content: &[u8]) -> Signature {
     let secp: Secp256k1<All> = Secp256k1::<All>::new();

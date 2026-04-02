@@ -1,8 +1,8 @@
-use bitcoin_y::errors::KeyPairError;
 use bitcoin_y::key::{KeyPair, sign, verify};
 
 #[cfg(test)]
 mod tests {
+    use bitcoin_y::errors::CError;
     use super::*;
 
     #[test]
@@ -130,17 +130,17 @@ mod tests {
 
     #[test]
     fn test_try_from_invalid_hex_length() {
-        let result: Result<KeyPair, KeyPairError> = "invalid".try_into();
+        let result: Result<KeyPair, CError> = "invalid".try_into();
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), KeyPairError::InvalidHexLength(7));
+        assert_eq!(result.unwrap_err(), CError::InvalidHexLength(64,7));
     }
 
     #[test]
     fn test_try_from_invalid_secret_key() {
-        let result: Result<KeyPair, KeyPairError> =
+        let result: Result<KeyPair, CError> =
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".try_into();
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), KeyPairError::InvalidSecretKey);
+        assert_eq!(result.unwrap_err(), CError::InvalidSecretKey);
     }
 
     #[test]
@@ -182,8 +182,8 @@ mod tests {
     #[test]
     fn test_try_from_invalid_byte_array() {
         let bytes: [u8; 32] = [0xff; 32];
-        let result: Result<KeyPair, KeyPairError> = bytes.try_into();
+        let result: Result<KeyPair, CError> = bytes.try_into();
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), KeyPairError::InvalidSecretKey);
+        assert_eq!(result.unwrap_err(), CError::InvalidSecretKey);
     }
 }
