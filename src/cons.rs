@@ -13,3 +13,5 @@ const COIN: u64 = 100_000_000;
 
 /// 比特币挖矿奖励确认数 100 个区块,也不知道中本聪咋想的，100个区块确认后才会被认为是有效交易
 const COINBASE_MATURITY: usize = 100;
+
+const COINBASE: u64 = 1_000_000;

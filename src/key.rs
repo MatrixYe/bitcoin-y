@@ -43,22 +43,44 @@ impl KeyPair {
     // 生成比特币地址：地址=版本号+双哈希+校验码
     #[allow(dead_code)]
     pub fn to_address(&self) -> String {
+        // 第一步，提取公钥
         let pk = self.public_key.serialize(); //公钥
+        // 第二步，对公钥进行第一次哈希SHA256,得到
+        let pk_hash_1 = Sha256::digest(pk); //公钥第一次哈希
+        // 第三步，对公钥匙进行第二次哈希
+        let pk_hash_2 = Ripemd160::digest(pk_hash_1); //公钥第二次哈希
+        // 创建一个容器，容量25个字节
+        // let mut buff = vec![0u8; 25]; // 下次再这么写直接打死
+        let mut buff = Vec::with_capacity(25);
 
-        let sha256 = Sha256::digest(pk); //公钥第一次哈希
+        buff.push(0x00);
+        buff.extend_from_slice(&pk_hash_2);
 
-        let ripemd160 = Ripemd160::digest(sha256); //公钥第二次哈希
+        let buff_hash = Sha256::digest(Sha256::digest(&buff));
 
-        let mut payload = Vec::with_capacity(1 + 20 + 4); //负载=版本号+双哈希+校验码
+        let checksum: &[u8] = &buff_hash[..4];
 
-        payload.push(0x00); //添加版本号，主网为0x00
+        buff.extend_from_slice(&checksum);
+        bs58::encode(buff).into_string()
 
-        payload.extend_from_slice(ripemd160.as_slice()); //添加公钥双哈希
+        // bs58::encode(buff).into_string()
 
-        let checksum = Sha256::digest(Sha256::digest(&payload)); //取前4个字节作为校验码
-
-        payload.extend_from_slice(&checksum[..4]);
-        bs58::encode(payload).into_string() //base58编码
+        // let mut origin_address = Vec::with_capacity(1 + 20 + 4); //原始地址=版本号+负载+校验码
+        // //添加版本号，主网为0x00
+        // origin_address.push(0x00);
+        // // 添加双哈希值
+        // origin_address.extend_from_slice(pk_hash_2.as_slice()); //添加公钥双哈希
+        //
+        // let a = Sha256::digest(&origin_address);
+        // let checksum = &Sha256::digest(&a)[..4]; //取前4个字节作为校验码
+        //
+        // let checksum = hash_d(&origin_address);
+        //
+        // origin_address.extend_from_slice(checksum);
+        // // println!("{:?}",pk_hash_2);
+        // // 对原始地址进行base58编码，得到比特币地址(字符串形式)
+        // bs58::encode(origin_address).into_string()
+        // "".to_string()
     }
 }
 

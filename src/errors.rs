@@ -2,8 +2,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum CError {
-    /// IO错误（包装std::io::Error）
-    #[error("IO Error:{0}")]
+    /// IO错误
+    #[error("IO Error:{0}")] //不要包装std::io::Error，因为不支持PartialEq
     IO(String),
 
     /// 数据解析错误如JSON/TOML/CSV解析失败
