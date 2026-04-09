@@ -15,7 +15,8 @@ mod key;
 fn main() -> Result<(), ()> {
     env_logger::init();
     let pdb = db::DB::new("test.db");
-    pdb.init();
+    pdb.init().expect("Error initializing pdb");
+    println!("{:?}", "to do other...");
 
     Ok(())
 }
