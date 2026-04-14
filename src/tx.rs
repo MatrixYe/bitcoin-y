@@ -1,30 +1,20 @@
-use crate::block::BlockHash;
 use crate::errors::CError;
-/// @Name: tx
-///
-/// @Date: 2026/4/12 22:13
-///
-/// @Author: Matrix.Ye
-///
-/// @Description: 交易核心数据结构
 use crate::script::CScript;
-
+use crate::uint256::Uint256;
+use crate::utils::double_sha256;
 // 交易类型
 pub enum TransactionType {
     Normal,
     Coinbase,
 }
-// 交易哈希
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct TxHash(pub [u8; 32]);
 
 // 默克尔根哈希
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MerkleHash(pub [u8; 32]);
 
-pub type Uint256 = [u8; 32];
+pub type BlockHash = Uint256;
 // 交易
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CTransaction {
     n_version: u8,
     vin: Vec<CTxIn>,
@@ -33,7 +23,7 @@ pub struct CTransaction {
 }
 
 // 交易输出位置
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct COutPoint {
     hash: Uint256,
     n: i32,
@@ -41,16 +31,16 @@ pub struct COutPoint {
 
 impl COutPoint {
     pub fn set_null(&mut self) {
-        self.hash = [0u8; 32];
+        self.hash = Uint256::default();
         self.n = -1;
     }
     pub fn is_null(&self) -> bool {
-        self.hash == [0u8; 32] && self.n == -1
+        self.hash == Uint256::default() && self.n == -1
     }
 }
 
 // 交易输入
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CTxIn {
     preout: COutPoint,
     script_sig: CScript,
@@ -58,7 +48,7 @@ pub struct CTxIn {
 }
 
 // 交易输出
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CTxOut {
     value: u64,
     script_pub_key: CScript,
@@ -72,7 +62,7 @@ pub struct CInPoint<'a> {
 
 pub struct MerkleTx {
     base: CTransaction,
-    hash_block: BlockHash,            //所在区块哈希
+    hash_block: Uint256,              //所在区块哈希
     n_index: u32,                     //在区块中的索引
     v_merkle_branch: Vec<MerkleHash>, //默克尔分支
     f_merkle_verified: bool,          //默克尔验证状态
@@ -83,8 +73,9 @@ impl CTransaction {
     pub fn is_coinbase(&self) -> bool {
         self.vin.len() == 1 && self.vin[0].preout.is_null()
     }
-    pub fn hash() {
-        unimplemented!();
+    pub fn hash(&self) -> Uint256 {
+        // Uint256(double_sha256(self.serialize().as_slice()))
+        double_sha256(self.serialize().as_slice()).into()
     }
     /// 将交易序列化为比特币原生格式
     ///
@@ -119,7 +110,7 @@ impl CTransaction {
         // 3. 序列化每个输入
         for txin in &self.vin {
             // 3.1 previous_output hash (32字节)
-            buffer.extend_from_slice(&txin.preout.hash);
+            buffer.extend_from_slice(&txin.preout.hash.value());
 
             // 3.2 previous_output n (4字节, 小端序)
             buffer.extend_from_slice(&txin.preout.n.to_le_bytes());
@@ -128,7 +119,7 @@ impl CTransaction {
             buffer.extend(write_compact_size(txin.script_sig.len()));
 
             // 3.4 script_sig 内容
-            buffer.extend_from_slice(&txin.script_sig.0);
+            buffer.extend_from_slice(&txin.script_sig);
 
             // 3.5 sequence (4字节, 小端序)
             buffer.extend_from_slice(&txin.n_sequence.to_le_bytes());
@@ -146,7 +137,7 @@ impl CTransaction {
             buffer.extend(write_compact_size(txout.script_pub_key.len()));
 
             // 5.3 script_pub_key 内容
-            buffer.extend_from_slice(&txout.script_pub_key.0);
+            buffer.extend_from_slice(&txout.script_pub_key);
         }
 
         // 6. 序列化 lock_time (4字节, 小端序)
@@ -185,6 +176,7 @@ impl CTransaction {
         Ok(true)
     }
 }
+//noinspection GrazieInspection
 /// CompactSize 变长整数编码
 ///
 /// 比特币使用的变长整数编码规则:

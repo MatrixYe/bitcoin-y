@@ -12,7 +12,9 @@ mod db;
 mod errors;
 mod key;
 mod script;
-
+mod tx;
+mod uint256;
+mod utils;
 fn main() -> Result<(), ()> {
     env_logger::init();
     let pdb = db::DB::new("test.db");
