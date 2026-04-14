@@ -11,6 +11,7 @@ mod cons;
 mod db;
 mod errors;
 mod key;
+mod script;
 
 fn main() -> Result<(), ()> {
     env_logger::init();

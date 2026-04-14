@@ -1,3 +1,7 @@
 pub mod errors;
 pub mod key;
-mod tx;
+pub mod tx;
+pub mod script;
+pub mod block;
+pub mod utils;
+

@@ -49,6 +49,9 @@ impl KeyPair {
         let pk_hash_1 = Sha256::digest(pk); //公钥第一次哈希
         // 第三步，对公钥匙进行第二次哈希
         let pk_hash_2 = Ripemd160::digest(pk_hash_1); //公钥第二次哈希
+        
+        
+        
         // 创建一个容器，容量25个字节
         // let mut buff = vec![0u8; 25]; // 下次再这么写直接打死
         let mut buff = Vec::with_capacity(25);

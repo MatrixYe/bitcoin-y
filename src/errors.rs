@@ -32,4 +32,7 @@ pub enum CError {
     // 私钥的十六进制字符错误
     #[error("Invalid secret key: not a valid secp256k1 secret key")]
     InvalidSecretKey,
+
+    #[error("Invalid transaction:{0}")]
+    InvalidTransaction(String),
 }
