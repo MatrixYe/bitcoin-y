@@ -6,12 +6,22 @@
 ///
 /// @Description: 测试难度目标的压缩和解压缩函数
 use bitcoin_y::utils::{compact_to_target, target_to_compact};
+use hex;
 
-
+/// @Description: 测试难度目标的压缩和解压缩函数
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// @Description: 测试难度目标的压缩和解压缩函数
+    #[test]
+    fn test_nbits() {
+        let nbit = 0x1b0404cb;
+        let target = compact_to_target(nbit).unwrap();
 
+        assert_eq!(hex::encode(target).to_uppercase(), "00000000000404CB000000000000000000000000000000000000000000000000");
+        let bits = target_to_compact(&target);
+        assert_eq!(bits, nbit);
+    }
     // 1. 创世区块基准测试
     #[test]
     fn test_genesis_block() {
@@ -44,6 +54,7 @@ mod tests {
         assert_eq!(target_to_compact(&target), bits);
     }
 
+    //noinspection ALL
     // 4. 无效值测试
     #[test]
     fn test_invalid_nbits_zero() {
@@ -80,6 +91,7 @@ mod tests {
     // 6. 小指数临界测试（全部修复）
     #[test]
     fn test_exponent_1() {
+        // 0x1d00ffff
         let bits = 0x0100007F;
         let target = compact_to_target(bits).unwrap();
         assert_eq!(target_to_compact(&target), bits);
