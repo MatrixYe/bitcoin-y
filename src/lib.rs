@@ -5,4 +5,5 @@ pub mod script;
 pub mod tx;
 pub mod uint256;
 pub mod utils;
+pub mod pow;
 

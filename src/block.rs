@@ -33,26 +33,19 @@ pub struct CBlock {
     // === 区块头 (80字节) ===
     /// 区块版本号
     n_version: i32,
-
     /// 前一个区块的哈希值
     prev_block_hash: BlockHash,
-
     /// Merkle 根哈希(所有交易的哈希根)
     merkle_root_hash: MerkleHash,
-
     /// 时间戳(Unix纪元时间)
     n_time: u32,
-
     /// 难度目标(压缩格式)
     n_bits: u32,
-
     /// 工作量证明的随机数
     n_nonce: u32,
-
     // === 区块体 ===
     /// 交易列表(包含coinbase交易)
     vtx: Vec<CTransaction>,
-
     // === 内存缓存字段(不序列化到磁盘/网络) ===
     /// 默克尔树节点缓存(用于快速验证)
     /// mutable: 可变字段,在const方法中也可以修改
@@ -115,10 +108,10 @@ impl CBlock {
                 return false;
             } // 无效的目标值
         };
+        let target_hash = Uint256::from_bytes(target);
 
         // 2. 计算区块哈希
         let block_hash: BlockHash = self.get_hash();
-        let target_hash = Uint256::from_bytes(target);
 
         // 3. 比较哈希是否小于目标值
         block_hash < target_hash
