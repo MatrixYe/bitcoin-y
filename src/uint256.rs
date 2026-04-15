@@ -4,71 +4,80 @@
 ///
 /// @Author: Matrix.Ye
 ///
-/// @Description: 256位无符号整数类型，用于存储哈希值
+/// @Description: 256位无符号整数类型，用于存储哈希值，参考比特币 C++ arith_uint256，采用小端字序存储
 
-/// 256位无符号整数，通常用于存储双重 SHA256 哈希值
+/// 256位无符号整数，采用小端字序 `[u32; 8]` 存储 (与比特币 C++ arith_uint256 一致)
+/// words[0]=LSW, words[7]=MSW，每个u32内部使用小端字节序
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Uint256([u8; 32]);
+pub struct Uint256([u32; 8]);
 
-// 实现 From<[u8; 32]>，支持 .into() 转换
-impl From<[u8; 32]> for Uint256 {
-    fn from(bytes: [u8; 32]) -> Self {
-        Uint256(bytes)
+impl From<[u32; 8]> for Uint256 {
+    fn from(words: [u32; 8]) -> Self {
+        Uint256(words)
     }
 }
 
-// 实现 From<Uint256> for [u8; 32]，支持反向转换
-impl From<Uint256> for [u8; 32] {
+impl From<Uint256> for [u32; 8] {
     fn from(hash: Uint256) -> Self {
         hash.0
     }
 }
 
-// 实现 PartialOrd，支持部分比较 (>, <, >=, <=)
+/// 字节数组采用比特币内部格式: bytes[0..4] = words[0] 的小端字节 (LSW)
+impl From<[u8; 32]> for Uint256 {
+    fn from(bytes: [u8; 32]) -> Self {
+        let mut words = [0u32; 8];
+        for i in 0..8 {
+            let start = i * 4;
+            words[i] = u32::from_le_bytes([
+                bytes[start],
+                bytes[start + 1],
+                bytes[start + 2],
+                bytes[start + 3],
+            ]);
+        }
+        Uint256(words)
+    }
+}
+
+impl From<Uint256> for [u8; 32] {
+    fn from(hash: Uint256) -> Self {
+        hash.to_bytes()
+    }
+}
+
 impl PartialOrd for Uint256 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-// 实现 Ord，支持全序比较，用于排序
-// 按字典序比较(从第一个字节开始比较)
+/// 小端字序下从 words[7](MSW) 到 words[0](LSW) 逐字比较，与 C++ arith_uint256 一致
 impl Ord for Uint256 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.cmp(&other.0)
+        for i in (0..8).rev() {
+            if self.0[i] < other.0[i] {
+                return std::cmp::Ordering::Less;
+            }
+            if self.0[i] > other.0[i] {
+                return std::cmp::Ordering::Greater;
+            }
+        }
+        std::cmp::Ordering::Equal
     }
 }
 
 impl Uint256 {
-    /// 将 Uint256 转换为十六进制字符串
-    ///
-    /// # 返回值
-    ///
-    /// * `String` - 64个字符的十六进制字符串(不含 "0x" 前缀)
-    pub fn to_hex_string(&self) -> String {
-        self.0.iter().map(|byte| format!("{:02x}", byte)).collect()
+    /// 转换为十六进制字符串，prefix=true 时带 "0x" 前缀
+    /// 输出大端显示序 (MSB在前)，与区块浏览器显示一致
+    pub fn to_hex_string(&self, prefix: bool) -> String {
+        let hex: String = (0..8).rev().map(|i| format!("{:08x}", self.0[i])).collect();
+        if prefix { format!("0x{}", hex) } else { hex }
     }
 
-    /// 将 Uint256 转换为带 "0x" 前缀的十六进制字符串
-    ///
-    /// # 返回值
-    ///
-    /// * `String` - 66个字符的十六进制字符串(含 "0x" 前缀)
-    pub fn to_hex_prefix_string(&self) -> String {
-        format!("0x{}", self.to_hex_string())
-    }
-
-    /// 从十六进制字符串创建 Uint256
-    ///
-    /// # 参数
-    ///
-    /// * `hex` - 十六进制字符串(可以有或没有 "0x" 前缀)
-    ///
-    /// # 返回值
-    ///
-    /// * `Result<Uint256, String>` - 成功返回 Uint256, 失败返回错误信息
+    /// 从十六进制字符串创建，输入64字符大端显示序 (MSB在前)，支持 "0x" 前缀
+    /// `hex[0..8] → words[7](MSW), hex[56..64] → words[0](LSW)`
     pub fn from_hex_string(hex: &str) -> Result<Self, String> {
-        // 移除 "0x" 或 "0X" 前缀
         let hex = hex.trim_start_matches("0x").trim_start_matches("0X");
 
         if hex.len() != 64 {
@@ -78,29 +87,228 @@ impl Uint256 {
             ));
         }
 
-        let mut bytes = [0u8; 32];
-        for i in 0..32 {
-            bytes[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16)
-                .map_err(|e| format!("Invalid hex character at position {}: {}", i * 2, e))?;
+        let mut words = [0u32; 8];
+        for i in 0..8 {
+            let start = i * 8;
+            let word_index = 7 - i;
+            words[word_index] = u32::from_str_radix(&hex[start..start + 8], 16)
+                .map_err(|e| format!("Invalid hex at position {}: {}", start, e))?;
         }
 
-        Ok(Uint256(bytes))
+        Ok(Uint256(words))
     }
 
-    pub fn from_bytes(value: [u8; 32]) -> Uint256 {
+    /// 从 `[u32; 8]` 创建，words[0] 为最低有效字 (LSW)
+    pub fn from_words(value: [u32; 8]) -> Uint256 {
         Uint256(value)
     }
 
-    /// 判断是否为零(所有字节都是0)
-    ///
-    /// # 返回值
-    ///
-    /// * `bool` - 如果所有字节都是0则返回 true
-    pub fn is_zero(&self) -> bool {
-        self.0.iter().all(|&b| b == 0)
+    /// 从 `[u8; 32]` 创建，bytes[0..4] = words[0] 小端字节 (LSW)
+    pub fn from_bytes(value: [u8; 32]) -> Uint256 {
+        Uint256::from(value)
     }
 
-    pub fn value(&self) -> [u8; 32] {
+    /// 返回内部 `[u32; 8]`，words[0] 为最低有效字 (LSW)
+    pub fn words(&self) -> [u32; 8] {
         self.0
+    }
+
+    /// 转换为 `[u8; 32]`，bytes[0..4] = words[0] 小端字节，用于序列化和哈希
+    pub fn to_bytes(&self) -> [u8; 32] {
+        let mut bytes = [0u8; 32];
+        for i in 0..8 {
+            let word_bytes = self.0[i].to_le_bytes();
+            let start = i * 4;
+            bytes[start] = word_bytes[0];
+            bytes[start + 1] = word_bytes[1];
+            bytes[start + 2] = word_bytes[2];
+            bytes[start + 3] = word_bytes[3];
+        }
+        bytes
+    }
+
+    /// 判断是否为零 (所有字都是0)
+    pub fn is_zero(&self) -> bool {
+        self.0.iter().all(|&w| w == 0)
+    }
+}
+
+impl Uint256 {
+    /// 返回最高有效位的位置 + 1（如果值为0则返回0）
+    /// 对应 C++ 的 base_uint::bits()
+    pub fn bits(&self) -> u32 {
+        for pos in (0..8).rev() {
+            if self.0[pos] != 0 {
+                for nbits in (1..=31).rev() {
+                    if (self.0[pos] & (1u32 << nbits)) != 0 {
+                        return 32 * pos as u32 + nbits + 1;
+                    }
+                }
+                return 32 * pos as u32 + 1;
+            }
+        }
+        0
+    }
+
+    /// 返回低 64 位值
+    /// 对应 C++ 的 base_uint::GetLow64()
+    pub fn get_low64(&self) -> u64 {
+        (self.0[0] as u64) | ((self.0[1] as u64) << 32)
+    }
+
+    /// 左移操作
+    pub fn shl_assign(&mut self, shift: u32) {
+        if shift == 0 {
+            return;
+        }
+
+        let word_shift = (shift / 32) as usize;
+        let bit_shift = shift % 32;
+
+        if word_shift >= 8 {
+            self.0 = [0u32; 8];
+            return;
+        }
+
+        // 先处理字级别的移位
+        if word_shift > 0 {
+            for i in (word_shift..8).rev() {
+                self.0[i] = self.0[i - word_shift];
+            }
+            for i in 0..word_shift {
+                self.0[i] = 0;
+            }
+        }
+
+        // 再处理位级别的移位
+        if bit_shift > 0 && word_shift < 8 {
+            for i in (word_shift + 1..8).rev() {
+                self.0[i] = (self.0[i] << bit_shift) | (self.0[i - 1] >> (32 - bit_shift));
+            }
+            self.0[word_shift] <<= bit_shift;
+        }
+    }
+
+    /// 右移操作
+    pub fn shr_assign(&mut self, shift: u32) {
+        if shift == 0 {
+            return;
+        }
+
+        let word_shift = (shift / 32) as usize;
+        let bit_shift = shift % 32;
+
+        if word_shift >= 8 {
+            self.0 = [0u32; 8];
+            return;
+        }
+
+        // 先处理字级别的移位
+        if word_shift > 0 {
+            for i in 0..(8 - word_shift) {
+                self.0[i] = self.0[i + word_shift];
+            }
+            for i in (8 - word_shift)..8 {
+                self.0[i] = 0;
+            }
+        }
+
+        // 再处理位级别的移位
+        if bit_shift > 0 && word_shift < 8 {
+            let limit = 8 - word_shift - 1;
+            for i in 0..limit {
+                self.0[i] = (self.0[i] >> bit_shift) | (self.0[i + 1] << (32 - bit_shift));
+            }
+            self.0[limit] >>= bit_shift;
+        }
+    }
+
+    /// 从紧凑格式 (nBits) 转换为 Uint256
+    /// 返回 (negative, overflow) 标志
+    /// 对应 C++ 的 arith_uint256::SetCompact
+    ///
+    /// 紧凑格式说明：
+    /// - 高 8 位：指数 (base 256)
+    /// - 低 23 位：尾数
+    /// - 第 24 位：符号位
+    ///
+    /// 公式：target = (-1^sign) * mantissa * 256^(exponent-3)
+    pub fn set_compact(n_compact: u32) -> (Self, bool, bool) {
+        let n_size = (n_compact >> 24) as i32;
+        let n_word = n_compact & 0x007fffff;
+
+        let mut result = Uint256::default();
+
+        if n_size <= 3 {
+            let shift = 8 * (3 - n_size);
+            result.0[0] = n_word >> shift;
+        } else {
+            result.0[0] = n_word;
+            let shift = 8 * (n_size - 3) as u32;
+            result.shl_assign(shift);
+        }
+
+        // 计算符号标志
+        let negative = n_word != 0 && (n_compact & 0x00800000) != 0;
+
+        // 计算溢出标志
+        let overflow = n_word != 0
+            && (n_size > 34 || (n_word > 0xff && n_size > 33) || (n_word > 0xffff && n_size > 32));
+
+        (result, negative, overflow)
+    }
+
+    /// 将 Uint256 转换为紧凑格式
+    /// 对应 C++ 的 arith_uint256::GetCompact
+    ///
+    /// 参数：
+    /// - negative: 是否设置符号位（比特币中通常为 false）
+    pub fn get_compact(&self, negative: bool) -> u32 {
+        // 计算字节数（向上取整）
+        let n_size = (self.bits() + 7) / 8;
+
+        let mut n_compact: u32;
+
+        if n_size <= 3 {
+            n_compact = (self.get_low64() << (8 * (3 - n_size))) as u32;
+        } else {
+            let mut bn = *self;
+            let shift = 8 * (n_size - 3);
+            bn.shr_assign(shift);
+            n_compact = bn.get_low64() as u32;
+        }
+
+        // 第 24 位表示符号，如果已设置，则将尾数除以 256 并增加指数
+        if (n_compact & 0x00800000) != 0 {
+            n_compact >>= 8;
+            // n_size 应该 +1，但这里我们直接在最终结果中处理
+        }
+
+        // 确保尾数只有 23 位
+        debug_assert!((n_compact & !0x007fffffu32) == 0);
+        debug_assert!(n_size < 256);
+
+        // 组合结果：指数 + 尾数 + 符号位
+        let mut result = n_compact | ((n_size as u32) << 24);
+
+        // 如果需要设置符号位
+        if negative && (n_compact & 0x007fffff) != 0 {
+            result |= 0x00800000;
+        }
+
+        result
+    }
+}
+
+// 实现运算符重载
+impl std::ops::ShlAssign<u32> for Uint256 {
+    fn shl_assign(&mut self, rhs: u32) {
+        self.shl_assign(rhs);
+    }
+}
+
+impl std::ops::ShrAssign<u32> for Uint256 {
+    fn shr_assign(&mut self, rhs: u32) {
+        self.shr_assign(rhs);
     }
 }

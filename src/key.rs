@@ -125,7 +125,7 @@ impl TryFrom<String> for KeyPair {
         secret_key_hex.as_str().try_into()
     }
 }
-// [u8; 32] ==> KeyPair
+// [u32; 8] ==> KeyPair
 impl TryFrom<[u8; 32]> for KeyPair {
     type Error = CError;
 

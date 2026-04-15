@@ -10,7 +10,7 @@ pub enum TransactionType {
 
 // 默克尔根哈希
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct MerkleHash(pub [u8; 32]);
+pub struct MerkleHash(pub [u32; 8]);
 
 pub type BlockHash = Uint256;
 // 交易
@@ -69,10 +69,12 @@ pub struct MerkleTx {
 }
 
 impl CTransaction {
-    // 判断是否是coinbase交易
+    /// 判断是否是coinbase交易
     pub fn is_coinbase(&self) -> bool {
         self.vin.len() == 1 && self.vin[0].preout.is_null()
     }
+
+    /// 获取交易的哈希值
     pub fn hash(&self) -> Uint256 {
         // Uint256(double_sha256(self.serialize().as_slice()))
         double_sha256(self.serialize().as_slice()).into()
@@ -99,50 +101,8 @@ impl CTransaction {
     ///
     /// * `Vec<u8>` - 序列化后的字节数组
     pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::new();
-
-        // 1. 序列化 version (4字节, 小端序)
-        buffer.extend_from_slice(&(self.n_version as u32).to_le_bytes());
-
-        // 2. 序列化输入数量 (CompactSize 变长整数)
-        buffer.extend(write_compact_size(self.vin.len()));
-
-        // 3. 序列化每个输入
-        for txin in &self.vin {
-            // 3.1 previous_output hash (32字节)
-            buffer.extend_from_slice(&txin.preout.hash.value());
-
-            // 3.2 previous_output n (4字节, 小端序)
-            buffer.extend_from_slice(&txin.preout.n.to_le_bytes());
-
-            // 3.3 script_sig 长度 (CompactSize)
-            buffer.extend(write_compact_size(txin.script_sig.len()));
-
-            // 3.4 script_sig 内容
-            buffer.extend_from_slice(&txin.script_sig);
-
-            // 3.5 sequence (4字节, 小端序)
-            buffer.extend_from_slice(&txin.n_sequence.to_le_bytes());
-        }
-
-        // 4. 序列化输出数量 (CompactSize)
-        buffer.extend(write_compact_size(self.vout.len()));
-
-        // 5. 序列化每个输出
-        for txout in &self.vout {
-            // 5.1 value (8字节, 小端序)
-            buffer.extend_from_slice(&txout.value.to_le_bytes());
-
-            // 5.2 script_pub_key 长度 (CompactSize)
-            buffer.extend(write_compact_size(txout.script_pub_key.len()));
-
-            // 5.3 script_pub_key 内容
-            buffer.extend_from_slice(&txout.script_pub_key);
-        }
-
-        // 6. 序列化 lock_time (4字节, 小端序)
-        buffer.extend_from_slice(&self.n_lock_time.to_le_bytes());
-
+        let mut buffer: Vec<u8> = Vec::new();
+        unimplemented!();
         buffer
     }
 
@@ -153,13 +113,6 @@ impl CTransaction {
                 "CTransaction::CheckTransaction() : vin or vout empty".to_string(),
             ));
         }
-        // 检查是否有负值,由于类型限制，这样的比较毫无意义，中本聪用c++写才需要判断正负
-        // if self.vout.iter().any(|txout| txout.value < 0) {
-        //     return Err(CError::InvalidTransaction(
-        //         "CTransaction::CheckTransaction() : txout value negative".to_string(),
-        //     ));
-        // }
-
         if self.is_coinbase() {
             if self.vin[0].script_sig.len() < 2 || self.vin[0].script_sig.len() > 100 {
                 return Err(CError::InvalidTransaction(
@@ -177,28 +130,3 @@ impl CTransaction {
     }
 }
 //noinspection GrazieInspection
-/// CompactSize 变长整数编码
-///
-/// 比特币使用的变长整数编码规则:
-/// - 0-252: 直接编码为1字节
-/// - 253-0xFFFF: 0xFD + 2字节 (小端序)
-/// - 0x10000-0xFFFFFFFF: 0xFE + 4字节 (小端序)
-/// - 0x100000000-: 0xFF + 8字节 (小端序)
-///
-fn write_compact_size(value: usize) -> Vec<u8> {
-    if value < 0xFD {
-        vec![value as u8]
-    } else if value <= 0xFFFF {
-        let mut result = vec![0xFD];
-        result.extend_from_slice(&(value as u16).to_le_bytes());
-        result
-    } else if value <= 0xFFFFFFFF {
-        let mut result = vec![0xFE];
-        result.extend_from_slice(&(value as u32).to_le_bytes());
-        result
-    } else {
-        let mut result = vec![0xFF];
-        result.extend_from_slice(&(value as u64).to_le_bytes());
-        result
-    }
-}

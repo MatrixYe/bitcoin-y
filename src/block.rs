@@ -1,7 +1,5 @@
 use crate::tx::CTransaction;
 use crate::uint256::Uint256;
-use crate::utils::{compact_to_target, double_sha256};
-use log;
 //class CBlock {
 // public:
 //   // header
@@ -67,55 +65,55 @@ impl CBlock {
     ///
     /// * `Vec<u8>` - 80字节的区块头序列化数据
     ///
-    pub fn serialize_header(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(80);
-
-        // 1. 序列化 version (4字节, 小端序)
-        buffer.extend_from_slice(&self.n_version.to_le_bytes());
-
-        // 2. 序列化 prev_block_hash (32字节)
-        buffer.extend_from_slice(&self.prev_block_hash.value());
-
-        // 3. 序列化 merkle_root_hash (32字节)
-        buffer.extend_from_slice(&self.merkle_root_hash.value());
-
-        // 4. 序列化 time (4字节, 小端序)
-        buffer.extend_from_slice(&self.n_time.to_le_bytes());
-
-        // 5. 序列化 bits (4字节, 小端序)
-        buffer.extend_from_slice(&self.n_bits.to_le_bytes());
-
-        // 6. 序列化 nonce (4字节, 小端序)
-        buffer.extend_from_slice(&self.n_nonce.to_le_bytes());
-
-        buffer
-    }
+    // pub fn serialize_header(&self) -> Vec<u32> {
+    //     let mut buffer: Vec<u32> = Vec::with_capacity(80);
+    //
+    //     // 1. 序列化 version (4字节, 小端序)
+    //     buffer.extend_from_slice(&self.n_version.);
+    //
+    //     // 2. 序列化 prev_block_hash (32字节)
+    //     buffer.extend_from_slice(&self.prev_block_hash.value());
+    //
+    //     // 3. 序列化 merkle_root_hash (32字节)
+    //     buffer.extend_from_slice(&self.merkle_root_hash.value());
+    //
+    //     // 4. 序列化 time (4字节, 小端序)
+    //     buffer.extend_from_slice(&self.n_time.to_le_bytes());
+    //
+    //     // 5. 序列化 bits (4字节, 小端序)
+    //     buffer.extend_from_slice(&self.n_bits.to_le_bytes());
+    //
+    //     // 6. 序列化 nonce (4字节, 小端序)
+    //     buffer.extend_from_slice(&self.n_nonce.to_le_bytes());
+    //
+    //     buffer
+    // }
 
     // 计算区块哈希
-    pub fn get_hash(&self) -> BlockHash {
-        let value = double_sha256(self.serialize_header().as_slice());
-        Uint256::from_bytes(value)
-        // unimplemented!()
-    }
+    // pub fn get_hash(&self) -> BlockHash {
+    //     let value = double_sha256(self.serialize_header().as_slice());
+    //     Uint256::from_bytes(value)
+    //     // unimplemented!()
+    // }
 
     // 检查 PoW
-    pub fn check_proof_of_work(&self) -> bool {
-        // 1. 从 n_bits 解压缩得到目标值
-        let target = match compact_to_target(self.n_bits) {
-            Some(t) => t,
-            None => {
-                log::error!("Invalid target value");
-                return false;
-            } // 无效的目标值
-        };
-        let target_hash = Uint256::from_bytes(target);
-
-        // 2. 计算区块哈希
-        let block_hash: BlockHash = self.get_hash();
-
-        // 3. 比较哈希是否小于目标值
-        block_hash < target_hash
-    }
+    // pub fn check_proof_of_work(&self) -> bool {
+    //     // 1. 从 n_bits 解压缩得到目标值
+    //     let target = match compact_to_target(self.n_bits) {
+    //         Some(t) => t,
+    //         None => {
+    //             log::error!("Invalid target value");
+    //             return false;
+    //         } // 无效的目标值
+    //     };
+    //     let target_hash = Uint256::from_bytes(target);
+    //
+    //     // 2. 计算区块哈希
+    //     let block_hash: BlockHash = self.get_hash();
+    //
+    //     // 3. 比较哈希是否小于目标值
+    //     block_hash < target_hash
+    // }
 
     // 构建默克尔树
     pub fn build_merkle_tree(&mut self) {

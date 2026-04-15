@@ -9,12 +9,12 @@
 // pow.rs
 
 /// 将压缩的目标值nbit转换为32字节的目标值target
-pub fn nbit_to_target(compact: u32, limit: [u8; 32]) -> [u8; 32] {
+pub fn nbit_to_target(compact: u32, limit: [u32; 8]) -> [u32; 8] {
     unimplemented!()
 }
 
 /// 将32字节的目标值target转换为压缩的目标值nbit
-pub fn target_to_nbit(target: [u8; 32]) -> u32 {
+pub fn target_to_nbit(target: [u32; 8]) -> u32 {
     unimplemented!()
 }
 
