@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package bitcoin.core;
+package core;
 
 // 交易输出点 COutPoint
 message OutPoint {

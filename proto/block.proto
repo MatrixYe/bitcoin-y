@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package bitcoin.core;
+package core;
 
 import "transaction.proto";
 

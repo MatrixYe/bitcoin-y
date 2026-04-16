@@ -19,6 +19,7 @@ mod uint256;
 mod utils;
 
 fn main() {
+    env_logger::init(); // 不要注释
     // 测试 u64 转 Uint256
     let u64_val = 0x123456789abcdefu64;
     let uint = Uint256::from(u64_val);
