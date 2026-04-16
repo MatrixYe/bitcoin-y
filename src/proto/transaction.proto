@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package bitcoin.core;
+
+// 交易输出点 COutPoint
+message OutPoint {
+  bytes tx_hash = 1;
+  uint32 n = 2;
+}
+
+// 交易输入 CTxIn
+message TxIn {
+  OutPoint preout = 1;
+  bytes script_sig = 2;
+  uint32 sequence = 3;
+}
+
+// 交易输出 CTxOut
+message TxOut {
+  uint64 value = 1;
+  bytes script_pubkey = 2;
+}
+
+// 隔离见证 CTxWitness
+message Witness {
+  repeated bytes stack = 1;
+}
+
+// 主交易结构 CTransaction
+message Transaction {
+  int32 version = 1;
+  repeated TxIn vin = 2;
+  repeated TxOut vout = 3;
+  repeated Witness witnesses = 4;
+  uint32 lock_time = 5;
+}

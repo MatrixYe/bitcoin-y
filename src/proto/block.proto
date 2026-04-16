@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package bitcoin.core;
+
+import "transaction.proto";
+
+// 区块头 CBlockHeader
+message BlockHeader {
+  int32 version = 1;
+  bytes prev_block_hash = 2;
+  bytes merkle_root_hash = 3;
+  uint32 n_time = 4;
+  uint32 n_bits = 5;
+  uint32 nonce = 6;
+}
+
+// 区块 CBlock
+message Block {
+  BlockHeader header = 1;
+  repeated Transaction txs = 2;
+}

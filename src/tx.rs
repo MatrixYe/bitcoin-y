@@ -75,7 +75,7 @@ impl CTransaction {
     }
 
     /// 获取交易的哈希值
-    pub fn hash(&self) -> Uint256 {
+    pub fn get_hash(&self) -> Uint256 {
         // Uint256(double_sha256(self.serialize().as_slice()))
         double_sha256(self.serialize().as_slice()).into()
     }
