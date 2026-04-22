@@ -1,4 +1,2 @@
-# 关闭未使用函数/方法警告
-disable = ["unused_functions", "unused_methods"]
-# 可选：关闭其他unused警告
-# disable = ["unused_functions", "unused_variables"]
+# 当前未配置额外的 clippy 规则。
+# 旧版 `disable = [...]` 配置已被移除，因为在新的 clippy 版本中不再受支持。

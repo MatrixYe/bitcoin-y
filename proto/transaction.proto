@@ -1,6 +1,7 @@
 syntax = "proto3";
 
-package core;
+package transaction;
+
 
 // 交易输出点 COutPoint
 message OutPoint {
@@ -21,16 +22,10 @@ message TxOut {
   bytes script_pubkey = 2;
 }
 
-// 隔离见证 CTxWitness
-message Witness {
-  repeated bytes stack = 1;
-}
-
 // 主交易结构 CTransaction
 message Transaction {
   int32 version = 1;
   repeated TxIn vin = 2;
   repeated TxOut vout = 3;
-  repeated Witness witnesses = 4;
   uint32 lock_time = 5;
 }

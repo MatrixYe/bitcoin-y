@@ -1,8 +1,7 @@
 syntax = "proto3";
-
-package core;
-
 import "transaction.proto";
+
+package block;
 
 // 区块头 CBlockHeader
 message BlockHeader {
@@ -17,5 +16,5 @@ message BlockHeader {
 // 区块 CBlock
 message Block {
   BlockHeader header = 1;
-  repeated Transaction txs = 2;
+  repeated transaction.Transaction txs = 2;
 }

@@ -1,10 +1,7 @@
-/// @Name: uint256
-///
-/// @Date: 2026/4/14 14:52
-///
-/// @Author: Matrix.Ye
-///
-/// @Description: 256位无符号整数类型，用于存储哈希值，参考比特币 C++ arith_uint256，采用小端字序存储
+// @Name: uint256
+// @Date: 2026/4/14 14:52
+// @Author: Matrix.Ye
+// @Description: 256位无符号整数类型，用于存储哈希值，参考比特币 C++ arith_uint256，采用小端字序存储
 
 /// 256位无符号整数，采用小端字序 `[u32; 8]` 存储 (与比特币 C++ arith_uint256 一致)
 /// words[0]=LSW, words[7]=MSW，每个u32内部使用小端字节序
@@ -48,9 +45,9 @@ impl From<Uint256> for [u32; 8] {
 impl From<[u8; 32]> for Uint256 {
     fn from(bytes: [u8; 32]) -> Self {
         let mut words = [0u32; 8];
-        for i in 0..8 {
+        for (i, word) in words.iter_mut().enumerate() {
             let start = i * 4;
-            words[i] = u32::from_le_bytes([
+            *word = u32::from_le_bytes([
                 bytes[start],
                 bytes[start + 1],
                 bytes[start + 2],
@@ -295,7 +292,7 @@ impl Uint256 {
     /// 对应 C++ 的 arith_uint256::GetCompact
     pub fn get_compact(&self, negative: bool) -> u32 {
         // 计算字节数（向上取整）
-        let n_size = (self.bits() + 7) / 8;
+        let n_size = self.bits().div_ceil(8);
 
         let mut n_compact: u32;
 
@@ -314,7 +311,7 @@ impl Uint256 {
         }
 
         // 组合结果：指数 + 尾数 + 符号位
-        let mut result = n_compact | ((n_size as u32) << 24);
+        let mut result = n_compact | (n_size << 24);
 
         // 如果需要设置符号位
         if negative && (n_compact & 0x007fffff) != 0 {

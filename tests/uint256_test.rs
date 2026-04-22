@@ -1,10 +1,7 @@
-/// @Name: uint256_test
-///
-/// @Date: 2026/4/16 03:15
-///
-/// @Author: Matrix.Ye
-///
-/// @Description: null
+// @Name: uint256_test
+// @Date: 2026/4/16 03:15
+// @Author: Matrix.Ye
+// @Description: null
 
 #[cfg(test)]
 mod tests {

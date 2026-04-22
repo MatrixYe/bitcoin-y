@@ -7,17 +7,6 @@ use bitcoin_y::uint256::Uint256;
 /// @Author: Matrix.Ye
 ///
 /// @Description: ///
-///
-mod block;
-mod cons;
-mod db;
-mod errors;
-mod key;
-mod script;
-mod tx;
-mod uint256;
-mod utils;
-
 fn main() {
     env_logger::init(); // 不要注释
     // 测试 u64 转 Uint256
@@ -33,6 +22,7 @@ fn main() {
     assert_eq!(uint.to_hex_string(false), hex);
 }
 
+#[allow(dead_code)]
 fn temp() {
     // 示例 1: 从 nBits 转换为 Uint256
     // 比特币创世区块的 nBits = 0x1d00ffff
@@ -52,7 +42,7 @@ fn temp() {
         ),
     ];
     for (x, y) in buff {
-        let (target, negative, overflow) = Uint256::set_compact(x);
+        let (target, _negative, _overflow) = Uint256::set_compact(x);
         let y = Uint256::from_hex_string(y).unwrap();
         println!("计算Target:{:?}", target.to_hex_string(true));
         println!("解压缩 是否匹配：{:?}", target == y);

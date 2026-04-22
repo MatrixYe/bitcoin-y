@@ -2,9 +2,9 @@ use crate::errors::CError;
 use hex;
 use ripemd::Ripemd160;
 use secp256k1::ecdsa::Signature;
-use secp256k1::hashes::{sha256, Hash};
-use secp256k1::{rand, PublicKey, SecretKey};
+use secp256k1::hashes::{Hash, sha256};
 use secp256k1::{All, Message, Secp256k1};
+use secp256k1::{PublicKey, SecretKey, rand};
 use sha2::{Digest, Sha256};
 /// @Name key.rs
 ///
@@ -49,9 +49,7 @@ impl KeyPair {
         let pk_hash_1 = Sha256::digest(pk); //公钥第一次哈希
         // 第三步，对公钥匙进行第二次哈希
         let pk_hash_2 = Ripemd160::digest(pk_hash_1); //公钥第二次哈希
-        
-        
-        
+
         // 创建一个容器，容量25个字节
         // let mut buff = vec![0u8; 25]; // 下次再这么写直接打死
         let mut buff = Vec::with_capacity(25);
@@ -63,7 +61,7 @@ impl KeyPair {
 
         let checksum: &[u8] = &buff_hash[..4];
 
-        buff.extend_from_slice(&checksum);
+        buff.extend_from_slice(checksum);
         bs58::encode(buff).into_string()
 
         // bs58::encode(buff).into_string()
@@ -84,6 +82,12 @@ impl KeyPair {
         // // 对原始地址进行base58编码，得到比特币地址(字符串形式)
         // bs58::encode(origin_address).into_string()
         // "".to_string()
+    }
+}
+
+impl Default for KeyPair {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
