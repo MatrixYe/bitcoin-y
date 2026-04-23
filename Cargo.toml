@@ -11,7 +11,6 @@ ripemd = "0.2.0"
 bs58 = "0.5.0"
 sha2 = "0.11.0"
 thiserror = "2.0"
-tokio = { version = "1.50.0", features = ["full"] }
 rusqlite = "0.39.0"
 log = "0.4.29"
 env_logger = "0.11.10"
