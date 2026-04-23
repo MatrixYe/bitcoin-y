@@ -1,22 +1,16 @@
-/**
- * 常量定义
- */
+// 全局共识常量。
 
-/// 公钥版本号 0x00 主网
-const PUBKEY_VERSION: u8 = 0x00;
+/// 公钥地址版本号，主网为 `0x00`。
+pub const PUBKEY_VERSION: u8 = 0x00;
 
-/// 最大区块大小 1MB
-const MAX_BLOCK_SIZE: usize = 1024 * 1024;
+/// 最大区块大小，当前实验实现保持为 1 MB。
+pub const MAX_BLOCK_SIZE: usize = 1024 * 1024;
 
-/// 比特币单位 1比特币 = 100,000,000 聪
-const COIN: u64 = 100_000_000;
+/// 1 BTC = 100,000,000 聪。
+pub const COIN: u64 = 100_000_000;
 
-/// 比特币挖矿奖励确认数 100 个区块,也不知道中本聪咋想的，100个区块确认后才会被认为是有效交易
-const COINBASE_MATURITY: usize = 100;
+/// coinbase 输出需要 100 个区块成熟。
+pub const COINBASE_MATURITY: usize = 100;
 
-const COINBASE: u64 = 1_000_000;
-
-
-/// coinbase 交易的输入交易的索引，0xffffffff，作为Coinbase 没有先前的出口点。参考
-/// [bitcoindev:reference:tx](https://bitcoindevelopers.org/docs/reference/transactions-ref/)
-pub const COINBASE_N: u32 = u32::MAX;
+/// 当前实验链的 coinbase 奖励。
+pub const COINBASE_REWARD: u64 = 1_000_000;

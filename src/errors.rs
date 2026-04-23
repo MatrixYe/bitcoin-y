@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::script::error::ScriptError;
+
 #[derive(Error, Debug, PartialEq)]
 pub enum CError {
     /// IO错误
@@ -35,4 +37,8 @@ pub enum CError {
 
     #[error("Invalid transaction:{0}")]
     InvalidTransaction(String),
+
+    /// 脚本执行错误
+    #[error("Script Error:{0}")]
+    Script(#[from] ScriptError),
 }
