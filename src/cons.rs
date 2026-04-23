@@ -15,3 +15,8 @@ const COIN: u64 = 100_000_000;
 const COINBASE_MATURITY: usize = 100;
 
 const COINBASE: u64 = 1_000_000;
+
+
+/// coinbase 交易的输入交易的索引，0xffffffff，作为Coinbase 没有先前的出口点。参考
+/// [bitcoindev:reference:tx](https://bitcoindevelopers.org/docs/reference/transactions-ref/)
+pub const COINBASE_N: u32 = u32::MAX;

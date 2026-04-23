@@ -2,8 +2,25 @@ Bitcoin-Y
 =========
 这是一个比特币研究项目，用于研究比特币的底层原理和实现。
 
-## 当前架构边界
+## 参考链接
 
-- `src/tx.rs`、`src/block.rs`：手写领域模型，承载链上语义、验证逻辑和后续业务规则
-- `src/proto.rs`：protobuf 线格式模块，只暴露 `prost` 生成的消息类型
-- 两者之间通过显式 `From` / `TryFrom` 转换连接，避免生成代码直接渗入业务逻辑
+#### 交易原始格式：
+https://bitcoindevelopers.org/docs/reference/transactions-ref/#raw-transaction-format
+
+#### CompactSize 编码：
+https://bitcoindevelopers.org/docs/reference/transactions-ref/#compactsize-unsigned-integers
+
+#### 区块头格式和区块序列化：
+- https://developer.bitcoin.org/reference/block_chain.html#block-headers
+- https://developer.bitcoin.org/reference/block_chain.html#serialized-blocks
+- https://bitcoindevelopers.org/docs/reference/block-chain-ref/
+#### 源码：区块结构源码
+https://doxygen.bitcoincore.org/block_8h_source.html
+
+
+#### 源码：序列化
+https://doxygen.bitcoincore.org/serialize_8h_source.html
+
+
+#### 构建默克尔树根哈希
+https://bitcoindevelopers.org/docs/reference/block-chain-ref/

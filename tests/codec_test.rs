@@ -3,8 +3,8 @@ use bitcoin_y::codec::{
     deserialize_block, deserialize_block_header, deserialize_compact_size, deserialize_transaction,
     serialize_block, serialize_block_header, serialize_compact_size, serialize_transaction,
 };
-use bitcoin_y::hash::{Hash256, txid};
-use bitcoin_y::tx::{OutPoint, Transaction, TxIn, TxOut};
+use bitcoin_y::hash::Hash256;
+use bitcoin_y::transaction::{OutPoint, Transaction, TxIn, TxOut};
 
 fn sample_transaction() -> Transaction {
     Transaction {
@@ -25,6 +25,7 @@ fn sample_transaction() -> Transaction {
     }
 }
 
+// 编解码测试，u64 压缩
 #[test]
 fn compact_size_roundtrip() {
     let cases = [0, 1, 0xfc, 0xfd, 0xffff, 0x1_0000, 0x1_0000_0000];
@@ -36,6 +37,7 @@ fn compact_size_roundtrip() {
     }
 }
 
+// 反序列化测试，错误情况
 #[test]
 fn compact_size_rejects_non_canonical_encoding() {
     let error = deserialize_compact_size(&[0xfd, 0x01, 0x00]).unwrap_err();
@@ -78,12 +80,11 @@ fn transaction_roundtrip_matches_reference_bytes() {
         "4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac",
         "00000000"
     );
-
     let serialized = serialize_transaction(&tx);
     assert_eq!(hex::encode(&serialized), expected);
     assert_eq!(deserialize_transaction(&serialized).unwrap(), tx);
     assert_eq!(
-        txid(&tx).to_display_hex(),
+        tx.txid().to_display_hex(),
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
     );
 }
@@ -116,6 +117,7 @@ fn block_header_roundtrip_matches_reference_bytes() {
     assert_eq!(deserialize_block_header(&serialized).unwrap(), header);
 }
 
+/// 测试区块的序列化和反序列化
 #[test]
 fn block_roundtrip_preserves_transactions() {
     let tx = sample_transaction();

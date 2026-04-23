@@ -63,25 +63,6 @@ impl KeyPair {
 
         buff.extend_from_slice(checksum);
         bs58::encode(buff).into_string()
-
-        // bs58::encode(buff).into_string()
-
-        // let mut origin_address = Vec::with_capacity(1 + 20 + 4); //原始地址=版本号+负载+校验码
-        // //添加版本号，主网为0x00
-        // origin_address.push(0x00);
-        // // 添加双哈希值
-        // origin_address.extend_from_slice(pk_hash_2.as_slice()); //添加公钥双哈希
-        //
-        // let a = Sha256::digest(&origin_address);
-        // let checksum = &Sha256::digest(&a)[..4]; //取前4个字节作为校验码
-        //
-        // let checksum = hash_d(&origin_address);
-        //
-        // origin_address.extend_from_slice(checksum);
-        // // println!("{:?}",pk_hash_2);
-        // // 对原始地址进行base58编码，得到比特币地址(字符串形式)
-        // bs58::encode(origin_address).into_string()
-        // "".to_string()
     }
 }
 

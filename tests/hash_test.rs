@@ -1,6 +1,6 @@
-use bitcoin_y::block::BlockHeader;
-use bitcoin_y::hash::{Hash256, block_hash, hash160, merkle_root, sha256, sha256d, txid};
-use bitcoin_y::tx::{OutPoint, Transaction, TxIn, TxOut};
+use bitcoin_y::block::{Block, BlockHeader};
+use bitcoin_y::hash::{Hash256, hash160, sha256, sha256d};
+use bitcoin_y::transaction::{OutPoint, Transaction, TxIn, TxOut};
 use bitcoin_y::utils::ripemd160;
 
 fn genesis_coinbase_transaction() -> Transaction {
@@ -65,9 +65,14 @@ fn hash256_display_hex_roundtrip() {
 fn genesis_coinbase_txid_matches_reference() {
     let tx = genesis_coinbase_transaction();
     let expected = "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b";
-    assert_eq!(txid(&tx).to_display_hex(), expected);
+    assert_eq!(tx.txid().to_display_hex(), expected);
     assert_eq!(
-        merkle_root(std::slice::from_ref(&tx)).to_display_hex(),
+        Block {
+            header: BlockHeader::default(),
+            txdata: vec![tx],
+        }
+        .merkle_root()
+        .to_display_hex(),
         expected
     );
 }
@@ -87,5 +92,5 @@ fn genesis_block_hash_matches_reference() {
     };
 
     let expected = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f";
-    assert_eq!(block_hash(&header).to_display_hex(), expected);
+    assert_eq!(header.block_hash().to_display_hex(), expected);
 }

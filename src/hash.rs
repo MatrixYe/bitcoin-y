@@ -4,10 +4,7 @@ use hex::FromHexError;
 use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};
 
-use crate::block::BlockHeader;
-use crate::codec::{serialize_block_header, serialize_transaction};
 use crate::errors::CError;
-use crate::tx::Transaction;
 use crate::uint256::Uint256;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -49,12 +46,14 @@ impl fmt::Display for Hash256 {
     }
 }
 
+/// u8 => Hash256
 impl From<[u8; 32]> for Hash256 {
     fn from(value: [u8; 32]) -> Self {
         Self(value)
     }
 }
 
+/// Hash256 => u8
 impl From<Hash256> for [u8; 32] {
     fn from(value: Hash256) -> Self {
         value.0
@@ -73,51 +72,50 @@ impl From<Uint256> for Hash256 {
     }
 }
 
+/// 一次sha256
 pub fn sha256(data: &[u8]) -> [u8; 32] {
     Sha256::digest(data).into()
 }
 
+/// 两次哈希，sha256 * sha256
 pub fn sha256d(data: &[u8]) -> Hash256 {
     Hash256(sha256(&sha256(data)))
 }
 
+/// 先sha256 再ripemd160,在生成地址的时候需要使用
 pub fn hash160(data: &[u8]) -> [u8; 20] {
     Ripemd160::digest(sha256(data)).into()
 }
 
-pub fn txid(tx: &Transaction) -> Hash256 {
-    sha256d(&serialize_transaction(tx))
+fn invalid_hash_hex(error: FromHexError) -> CError {
+    CError::Parse(format!("Invalid hash hex: {error}"))
 }
 
-pub fn block_hash(header: &BlockHeader) -> Hash256 {
-    sha256d(&serialize_block_header(header))
-}
-
-pub fn merkle_root(transactions: &[Transaction]) -> Hash256 {
-    if transactions.is_empty() {
+/// 构建默克尔树根
+pub fn make_merkle_root(mut layer: Vec<Hash256>) -> Hash256 {
+    if layer.len() == 0 {
         return Hash256::zero();
     }
-
-    let mut layer = transactions.iter().map(txid).collect::<Vec<_>>();
+    if layer.len() == 1 {
+        return layer[0];
+    }
     while layer.len() > 1 {
         if layer.len() % 2 == 1 {
-            let last = layer[layer.len() - 1];
+            // 奇数项,复制最后一个元素添加到尾部
+            let last = layer[layer.iter().len() - 1];
             layer.push(last);
         }
-
         let mut next = Vec::with_capacity(layer.len() / 2);
         for pair in layer.chunks(2) {
+            // 切片，大小2
             let mut bytes = [0u8; 64];
+            // 拼接32*2=64
             bytes[..32].copy_from_slice(&pair[0].0);
             bytes[32..].copy_from_slice(&pair[1].0);
+            // 计算double hash,添加
             next.push(sha256d(&bytes));
         }
         layer = next;
     }
-
     layer[0]
-}
-
-fn invalid_hash_hex(error: FromHexError) -> CError {
-    CError::Parse(format!("Invalid hash hex: {error}"))
 }

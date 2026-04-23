@@ -1,11 +1,12 @@
 pub mod block;
 pub mod codec;
 pub mod cons;
+mod db;
 pub mod errors;
 pub mod hash;
 pub mod key;
 pub mod pow;
 pub mod script;
-pub mod tx;
+pub mod transaction;
 pub mod uint256;
 pub mod utils;
