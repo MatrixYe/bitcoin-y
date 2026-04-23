@@ -8,4 +8,5 @@
 
 pub enum OpCode {
     Op0,
+    Op1,
 }
