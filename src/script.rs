@@ -18,5 +18,4 @@ pub mod verify;
 
 pub type Script = Vec<u8>;
 
-pub use consts::{MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_SIZE, MAX_STACK_SIZE};
 pub use error::ScriptError;
