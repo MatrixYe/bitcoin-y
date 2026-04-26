@@ -95,7 +95,7 @@ opcode_group! {
     }
 }
 
-// 别名是
+// 别名,解决rust语法中，不同操作码对应相同字节码的问题
 #[allow(non_upper_case_globals)]
 impl PushOp {
     pub const OpFalse: Self = Self::Op0;
