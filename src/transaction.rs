@@ -1,11 +1,11 @@
 use crate::codec::deserialize_transaction;
 use crate::codec::serialize_transaction;
 use crate::errors::CError;
-use crate::hash::sha256d;
 use crate::hash::Hash256;
+use crate::hash::sha256d;
 use crate::script::Script;
 
-/// coinbase 输入使用的特殊输出索引 `0xffff_ffff`。参考源忘了，反正查过一次。
+// coinbase 输入使用的特殊输出索引 0xffff_ffff。参考源忘了，反正查过一次。
 const COINBASE_N: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

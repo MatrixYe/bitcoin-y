@@ -1,7 +1,7 @@
-use std::fmt;
-
-use crate::script::opcode::{OpCode, PushOp};
 use crate::script::ScriptError;
+use crate::script::opcode::{OpCode, PushOp};
+
+use std::fmt;
 
 /// @Name: parser.rs
 ///
@@ -180,4 +180,116 @@ where
     value
         .try_into()
         .map_err(|e| ScriptError::OtherError(e.to_string()))
+}
+
+///
+/// 编码： 结构化数据 => 字节流
+/// # Arguments
+///
+/// * `instructions`: 指令集
+///
+/// returns: Result<Vec<u8>, ScriptError> 字节流
+///
+pub fn encode(instructions: &[Instruction]) -> Result<Vec<u8>, ScriptError> {
+    let mut script = Vec::new();
+
+    for instruction in instructions {
+        match instruction {
+            // 具名操作码
+            Instruction::Op(opcode) => {
+                script.push(opcode.byte());
+            }
+            // 压栈数据
+            Instruction::PushBytes { kind, data } => {
+                match kind {
+                    // 直接压栈数据
+                    PushBytesKind::Direct(n) => {
+                        // 检查 n 范围和 data.len()
+                        // 写入 n
+                        // 写入 data
+                        if !(0x01..=0x4b).contains(n) {
+                            return Err(ScriptError::InvalidPushDataDirect { actual: *n });
+                        }
+
+                        let expected_len = to_usize(*n)?;
+                        let len = data.len();
+
+                        if len != expected_len {
+                            return Err(ScriptError::PushDataLengthMismatch {
+                                kind: "Direct",
+                                expected: expected_len,
+                                actual: len,
+                            });
+                        }
+                        script.push(*n);
+                        script.extend_from_slice(data);
+                    }
+                    // PushData1
+                    PushBytesKind::PushData1 => {
+                        // 检查 data.len() <= u8::MAX
+                        // 写入 OP_PUSHDATA1
+                        // 写入 1 字节长度
+                        // 写入 data
+                        let max = to_usize(u8::MAX)?;
+                        let len = data.len();
+
+                        if len > max {
+                            return Err(ScriptError::PushDataLengthTooLarge {
+                                kind: "PushData1",
+                                max,
+                                actual: len,
+                            });
+                        }
+                        script.push(PushOp::PushData1.byte());
+                        script.push(len as u8);
+                        script.extend_from_slice(data);
+                    }
+
+                    //PushData2
+                    PushBytesKind::PushData2 => {
+                        // 检查 data.len() <= u16::MAX
+                        // 写入 OP_PUSHDATA2
+                        // 写入 2 字节小端长度
+                        // 写入 data
+                        let max = to_usize(u16::MAX)?;
+                        let len = data.len();
+
+                        if len > max {
+                            return Err(ScriptError::PushDataLengthTooLarge {
+                                kind: "PushData2",
+                                max,
+                                actual: len,
+                            });
+                        }
+                        script.push(PushOp::PushData2.byte());
+                        let n: [u8; 2] = (len as u16).to_le_bytes();
+                        script.extend_from_slice(&n);
+                        script.extend_from_slice(data);
+                    }
+                    //PushData4
+                    PushBytesKind::PushData4 => {
+                        // 检查 data.len() <= u32::MAX
+                        // 写入 OP_PUSHDATA4
+                        // 写入 4 字节小端长度
+                        // 写入 data
+
+                        let max = to_usize(u32::MAX)?;
+                        let len = data.len();
+                        if len > max {
+                            return Err(ScriptError::PushDataLengthTooLarge {
+                                kind: "PushData4",
+                                max,
+                                actual: len,
+                            });
+                        }
+                        script.push(PushOp::PushData4.byte());
+                        let n: [u8; 4] = (len as u32).to_le_bytes();
+                        script.extend_from_slice(&n);
+                        script.extend_from_slice(data);
+                    }
+                }
+            }
+        }
+    }
+    Ok(script)
 }
