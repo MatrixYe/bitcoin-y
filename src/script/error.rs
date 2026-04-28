@@ -16,7 +16,7 @@ pub enum ScriptError {
 
     /// 错误的数据长度
     #[error("invalid pushdata length")]
-    InvalidPushData,
+    InvalidPushDataLength,
 
     /// 脚本过大
     #[error("script size exceeds limit")]
@@ -56,5 +56,5 @@ pub enum ScriptError {
 
     /// 其他
     #[error("{0}")]
-    Message(String),
+    OtherError(String),
 }
