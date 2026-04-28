@@ -40,3 +40,5 @@ coverage/
 .cache/
 *.db
 *.sql
+bitcoin/
+bitcoin-v0.3.19/
