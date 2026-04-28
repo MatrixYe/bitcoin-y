@@ -18,6 +18,33 @@ pub enum ScriptError {
     #[error("invalid pushdata length")]
     InvalidPushDataLength,
 
+    #[error("invalid pushdata Direct,expected in [0x01,0x4b],actual {actual}")]
+    InvalidPushDataDirect { actual: u8 },
+
+    /// 数据长度不匹配
+    #[error("{kind} pushdata length mismatch: expected {expected}, actual {actual}")]
+    PushDataLengthMismatch {
+        kind: &'static str,
+        expected: usize,
+        actual: usize,
+    },
+
+    /// 数据长度过大
+    #[error("{kind} pushdata length too large: max {max}, actual {actual}")]
+    PushDataLengthTooLarge {
+        kind: &'static str,
+        max: usize,
+        actual: usize,
+    },
+
+    /// 数据长度过小
+    #[error("{kind} pushdata length too small: min {min}, actual {actual}")]
+    PushDataLengthTooSmall {
+        kind: &'static str,
+        min: usize,
+        actual: usize,
+    },
+
     /// 脚本过大
     #[error("script size exceeds limit")]
     ScriptTooLarge,
