@@ -11,15 +11,6 @@ use std::fmt;
 ///
 /// @Description: 脚本解析器
 ///
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PushBytesKind {
-    Direct(u8),
-    PushData1,
-    PushData2,
-    PushData4,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     //表示一个具名 opcode，比如 OP_DUP、OP_1、OP_CHECKSIG。
@@ -27,6 +18,15 @@ pub enum Instruction {
 
     //表示 parser 已经从脚本字节流里取出一段 payload bytes，执行器只需要把它压栈。
     PushBytes { kind: PushBytesKind, data: Vec<u8> },
+}
+
+// 数据压栈方式
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PushBytesKind {
+    Direct(u8), // 直接压栈，
+    PushData1,  // 下1个字节表示即将压栈的数据长度，最大u8::MAX
+    PushData2,  // 下2个字节表示即将压栈的数据长度，最大u16::MAX
+    PushData4,  // 下4个字节表示即将压栈的数据长度，最大u32::MAX
 }
 
 impl fmt::Display for PushBytesKind {
@@ -123,63 +123,6 @@ pub fn decode(script: &[u8]) -> Result<Vec<Instruction>, ScriptError> {
         }
     }
     Ok(instructions)
-}
-
-///
-/// 根据当前指针和指针增量(delta),读取多个字节(n*u8)
-/// ## Arguments
-///
-/// * `script`: 脚本字节流，不可变引用
-/// * `pc`: 可变引用，当前指针位置
-/// * `delta`: 指针增量
-///
-/// returns: Result<Vec<u8>, ScriptError>
-///
-fn read_bytes(script: &[u8], pc: &mut usize, delta: usize) -> Result<Vec<u8>, ScriptError> {
-    // let end = pc.add(delta);
-    let end = pc
-        .checked_add(delta)
-        .ok_or(ScriptError::UnexpectedEndOfScript)?;
-    if end > script.len() {
-        // 脚本声明后面有 N 字节，但实际没有这么多字节
-        return Err(ScriptError::UnexpectedEndOfScript);
-    }
-    let data = script[*pc..end].to_vec();
-    *pc = end;
-    Ok(data)
-}
-
-///
-/// 根据当前指针读取一个字节(u8)
-/// # Arguments
-///
-/// * `script`: 脚本字节流
-/// * `pc`: 当前指针位置，可变引用
-///
-/// returns: Result<u8, ScriptError>
-///
-fn read_byte(script: &[u8], pc: &mut usize) -> Result<u8, ScriptError> {
-    let byte = *script.get(*pc).ok_or(ScriptError::UnexpectedEndOfScript)?;
-    *pc += 1;
-    Ok(byte)
-}
-
-///
-/// 类型转化 u8/u16/u32=> usize
-/// # Arguments
-///
-/// * `value`:
-///
-/// returns: Result<usize, ScriptError>
-///
-fn to_usize<T>(value: T) -> Result<usize, ScriptError>
-where
-    T: TryInto<usize>,
-    T::Error: ToString,
-{
-    value
-        .try_into()
-        .map_err(|e| ScriptError::OtherError(e.to_string()))
 }
 
 ///
@@ -292,4 +235,61 @@ pub fn encode(instructions: &[Instruction]) -> Result<Vec<u8>, ScriptError> {
         }
     }
     Ok(script)
+}
+
+///
+/// 根据当前指针和指针增量(delta),读取多个字节(n*u8)
+/// ## Arguments
+///
+/// * `script`: 脚本字节流，不可变引用
+/// * `pc`: 可变引用，当前指针位置
+/// * `delta`: 指针增量
+///
+/// returns: Result<Vec<u8>, ScriptError>
+///
+fn read_bytes(script: &[u8], pc: &mut usize, delta: usize) -> Result<Vec<u8>, ScriptError> {
+    // let end = pc.add(delta);
+    let end = pc
+        .checked_add(delta)
+        .ok_or(ScriptError::UnexpectedEndOfScript)?;
+    if end > script.len() {
+        // 脚本声明后面有 N 字节，但实际没有这么多字节
+        return Err(ScriptError::UnexpectedEndOfScript);
+    }
+    let data = script[*pc..end].to_vec();
+    *pc = end;
+    Ok(data)
+}
+
+///
+/// 根据当前指针读取一个字节(u8)
+/// # Arguments
+///
+/// * `script`: 脚本字节流
+/// * `pc`: 当前指针位置，可变引用
+///
+/// returns: Result<u8, ScriptError>
+///
+fn read_byte(script: &[u8], pc: &mut usize) -> Result<u8, ScriptError> {
+    let byte = *script.get(*pc).ok_or(ScriptError::UnexpectedEndOfScript)?;
+    *pc += 1;
+    Ok(byte)
+}
+
+///
+/// 类型转化 u8/u16/u32=> usize
+/// # Arguments
+///
+/// * `value`:
+///
+/// returns: Result<usize, ScriptError>
+///
+fn to_usize<T>(value: T) -> Result<usize, ScriptError>
+where
+    T: TryInto<usize>,
+    T::Error: ToString,
+{
+    value
+        .try_into()
+        .map_err(|e| ScriptError::OtherError(e.to_string()))
 }
