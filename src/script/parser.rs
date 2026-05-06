@@ -1,5 +1,5 @@
-use crate::script::ScriptError;
 use crate::script::opcode::{OpCode, PushOp};
+use crate::script::ScriptError;
 
 use std::fmt;
 
@@ -12,24 +12,24 @@ use std::fmt;
 /// @Description: 脚本解析器
 ///
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Instruction {
+pub enum ScriptToken {
     //表示一个具名 opcode，比如 OP_DUP、OP_1、OP_CHECKSIG。
-    Op(OpCode),
+    Command(OpCode),
 
     //表示 parser 已经从脚本字节流里取出一段 payload bytes，执行器只需要把它压栈。
-    PushBytes { kind: PushBytesKind, data: Vec<u8> },
+    Data { kind: PushDataKind, bytes: Vec<u8> },
 }
 
 // 数据压栈方式
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PushBytesKind {
+pub enum PushDataKind {
     Direct(u8), // 直接压栈，
     PushData1,  // 下1个字节表示即将压栈的数据长度，最大u8::MAX
     PushData2,  // 下2个字节表示即将压栈的数据长度，最大u16::MAX
     PushData4,  // 下4个字节表示即将压栈的数据长度，最大u32::MAX
 }
 
-impl fmt::Display for PushBytesKind {
+impl fmt::Display for PushDataKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Direct(n) => write!(f, "Direct({n})"),
@@ -40,12 +40,12 @@ impl fmt::Display for PushBytesKind {
     }
 }
 
-impl fmt::Display for Instruction {
+impl fmt::Display for ScriptToken {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Op(opcode) => write!(f, "{opcode}"),
-            Self::PushBytes { kind, data } => {
-                write!(f, "{kind} len={} data=0x{}", data.len(), hex::encode(data))
+            Self::Command(opcode) => write!(f, "{opcode}"),
+            Self::Data { kind, bytes } => {
+                write!(f, "{kind} len={} bytes=0x{}", bytes.len(), hex::encode(bytes))
             }
         }
     }
@@ -57,10 +57,10 @@ impl fmt::Display for Instruction {
 ///
 /// * `script`: 脚本字节流
 ///
-/// returns: Result<Vec<Instruction>, ScriptError>
+/// returns: Result<Vec<ScriptToken>, ScriptError>
 ///
-pub fn decode(script: &[u8]) -> Result<Vec<Instruction>, ScriptError> {
-    let mut instructions: Vec<Instruction> = Vec::new(); // 待定指令集
+pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
+    let mut instructions: Vec<ScriptToken> = Vec::new(); // 待定指令集
     let mut pc = 0; // 当前指针
 
     while pc < script.len() {
@@ -68,13 +68,13 @@ pub fn decode(script: &[u8]) -> Result<Vec<Instruction>, ScriptError> {
 
         match byte {
             // Direct Push
-            // 0x01..=0x4b 本身不是具名 opcode，而是后续数据长度。
+            // 0x01..=0x4b 本身不是具名 opcode，而是后续数据长度。最大75字节。
             // 参考v0.3.19 script.h 533行  if (opcode < OP_PUSHDATA1)
             b if (0x01..=0x4b).contains(&b) => {
-                let data = read_bytes(script, &mut pc, to_usize(b)?)?;
-                instructions.push(Instruction::PushBytes {
-                    kind: PushBytesKind::Direct(b),
-                    data,
+                let bytes = read_bytes(script, &mut pc, to_usize(b)?)?;
+                instructions.push(ScriptToken::Data {
+                    kind: PushDataKind::Direct(b),
+                    bytes,
                 });
             }
 
@@ -82,10 +82,10 @@ pub fn decode(script: &[u8]) -> Result<Vec<Instruction>, ScriptError> {
             // PushData1 后面 1 字节表示数据长度
             b if b == PushOp::PushData1.byte() => {
                 let delta = read_byte(script, &mut pc)?;
-                let data = read_bytes(script, &mut pc, to_usize(delta)?)?;
-                instructions.push(Instruction::PushBytes {
-                    kind: PushBytesKind::PushData1,
-                    data,
+                let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
+                instructions.push(ScriptToken::Data {
+                    kind: PushDataKind::PushData1,
+                    bytes,
                 });
             }
             // PushData2
@@ -93,10 +93,10 @@ pub fn decode(script: &[u8]) -> Result<Vec<Instruction>, ScriptError> {
             b if b == PushOp::PushData2.byte() => {
                 let delta_bytes = read_bytes(script, &mut pc, 2)?;
                 let delta = u16::from_le_bytes([delta_bytes[0], delta_bytes[1]]);
-                let data = read_bytes(script, &mut pc, to_usize(delta)?)?;
-                instructions.push(Instruction::PushBytes {
-                    kind: PushBytesKind::PushData2,
-                    data,
+                let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
+                instructions.push(ScriptToken::Data {
+                    kind: PushDataKind::PushData2,
+                    bytes,
                 });
             }
             // PushData4
@@ -109,16 +109,16 @@ pub fn decode(script: &[u8]) -> Result<Vec<Instruction>, ScriptError> {
                     delta_bytes[2],
                     delta_bytes[3],
                 ]);
-                let data = read_bytes(script, &mut pc, to_usize(delta)?)?;
-                instructions.push(Instruction::PushBytes {
-                    kind: PushBytesKind::PushData4,
-                    data,
+                let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
+                instructions.push(ScriptToken::Data {
+                    kind: PushDataKind::PushData4,
+                    bytes,
                 });
             }
             // OpCode
             b => {
                 let op_code = OpCode::from_byte(b).ok_or(ScriptError::InvalidOpcode(b))?;
-                instructions.push(Instruction::Op(op_code))
+                instructions.push(ScriptToken::Command(op_code))
             }
         }
     }
@@ -133,29 +133,29 @@ pub fn decode(script: &[u8]) -> Result<Vec<Instruction>, ScriptError> {
 ///
 /// returns: Result<Vec<u8>, ScriptError> 字节流
 ///
-pub fn encode(instructions: &[Instruction]) -> Result<Vec<u8>, ScriptError> {
+pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
     let mut script = Vec::new();
 
     for instruction in instructions {
         match instruction {
             // 具名操作码
-            Instruction::Op(opcode) => {
+            ScriptToken::Command(opcode) => {
                 script.push(opcode.byte());
             }
             // 压栈数据
-            Instruction::PushBytes { kind, data } => {
+            ScriptToken::Data { kind, bytes } => {
                 match kind {
                     // 直接压栈数据
-                    PushBytesKind::Direct(n) => {
-                        // 检查 n 范围和 data.len()
+                    PushDataKind::Direct(n) => {
+                        // 检查 n 范围和 bytes.len()
                         // 写入 n
-                        // 写入 data
+                        // 写入 bytes
                         if !(0x01..=0x4b).contains(n) {
                             return Err(ScriptError::InvalidPushDataDirect { actual: *n });
                         }
 
                         let expected_len = to_usize(*n)?;
-                        let len = data.len();
+                        let len = bytes.len();
 
                         if len != expected_len {
                             return Err(ScriptError::PushDataLengthMismatch {
@@ -165,16 +165,16 @@ pub fn encode(instructions: &[Instruction]) -> Result<Vec<u8>, ScriptError> {
                             });
                         }
                         script.push(*n);
-                        script.extend_from_slice(data);
+                        script.extend_from_slice(bytes);
                     }
                     // PushData1
-                    PushBytesKind::PushData1 => {
-                        // 检查 data.len() <= u8::MAX
+                    PushDataKind::PushData1 => {
+                        // 检查 bytes.len() <= u8::MAX
                         // 写入 OP_PUSHDATA1
                         // 写入 1 字节长度
-                        // 写入 data
+                        // 写入 bytes
                         let max = to_usize(u8::MAX)?;
-                        let len = data.len();
+                        let len = bytes.len();
 
                         if len > max {
                             return Err(ScriptError::PushDataLengthTooLarge {
@@ -185,17 +185,17 @@ pub fn encode(instructions: &[Instruction]) -> Result<Vec<u8>, ScriptError> {
                         }
                         script.push(PushOp::PushData1.byte());
                         script.push(len as u8);
-                        script.extend_from_slice(data);
+                        script.extend_from_slice(bytes);
                     }
 
                     //PushData2
-                    PushBytesKind::PushData2 => {
-                        // 检查 data.len() <= u16::MAX
+                    PushDataKind::PushData2 => {
+                        // 检查 bytes.len() <= u16::MAX
                         // 写入 OP_PUSHDATA2
                         // 写入 2 字节小端长度
-                        // 写入 data
+                        // 写入 bytes
                         let max = to_usize(u16::MAX)?;
-                        let len = data.len();
+                        let len = bytes.len();
 
                         if len > max {
                             return Err(ScriptError::PushDataLengthTooLarge {
@@ -207,17 +207,17 @@ pub fn encode(instructions: &[Instruction]) -> Result<Vec<u8>, ScriptError> {
                         script.push(PushOp::PushData2.byte());
                         let n: [u8; 2] = (len as u16).to_le_bytes();
                         script.extend_from_slice(&n);
-                        script.extend_from_slice(data);
+                        script.extend_from_slice(bytes);
                     }
                     //PushData4
-                    PushBytesKind::PushData4 => {
-                        // 检查 data.len() <= u32::MAX
+                    PushDataKind::PushData4 => {
+                        // 检查 bytes.len() <= u32::MAX
                         // 写入 OP_PUSHDATA4
                         // 写入 4 字节小端长度
-                        // 写入 data
+                        // 写入 bytes
 
                         let max = to_usize(u32::MAX)?;
-                        let len = data.len();
+                        let len = bytes.len();
                         if len > max {
                             return Err(ScriptError::PushDataLengthTooLarge {
                                 kind: "PushData4",
@@ -228,7 +228,7 @@ pub fn encode(instructions: &[Instruction]) -> Result<Vec<u8>, ScriptError> {
                         script.push(PushOp::PushData4.byte());
                         let n: [u8; 4] = (len as u32).to_le_bytes();
                         script.extend_from_slice(&n);
-                        script.extend_from_slice(data);
+                        script.extend_from_slice(bytes);
                     }
                 }
             }
@@ -256,9 +256,9 @@ fn read_bytes(script: &[u8], pc: &mut usize, delta: usize) -> Result<Vec<u8>, Sc
         // 脚本声明后面有 N 字节，但实际没有这么多字节
         return Err(ScriptError::UnexpectedEndOfScript);
     }
-    let data = script[*pc..end].to_vec();
+    let bytes = script[*pc..end].to_vec();
     *pc = end;
-    Ok(data)
+    Ok(bytes)
 }
 
 ///

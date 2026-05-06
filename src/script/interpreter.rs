@@ -1,16 +1,18 @@
 use crate::script::consts::{MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_STACK_SIZE};
-use crate::script::opcode::{BitLogicOp, ControlOp, CryptoOp, ExpansionOp, NumericOp, OpCode, PushOp, SpliceOp, StackOp};
-use crate::script::parser::Instruction;
+use crate::script::opcode::{
+    BitLogicOp, ControlOp, CryptoOp, ExpansionOp, NumericOp, OpCode, PushOp, SpliceOp, StackOp,
+};
+use crate::script::parser::ScriptToken;
 use crate::script::ScriptError;
 
 pub type Stack = Vec<Vec<u8>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Interpreter {
-    pub stack: Stack, // 主栈
-    alt_stack: Stack, // 备用栈
+    pub stack: Stack,      // 主栈
+    alt_stack: Stack,      // 备用栈
     exec_stack: Vec<bool>, // 条件执行栈，后续实现 OP_IF / OP_ELSE / OP_ENDIF 时使用
-    op_count: usize, // 非 push 操作码计数
+    op_count: usize,       // 非 push 操作码计数
 }
 
 impl Interpreter {
@@ -66,17 +68,17 @@ impl Interpreter {
         execute -> execute_opcode -> exec_xxx_op
                 -> push data
     */
-    pub fn execute(&mut self, instructions: &[Instruction]) -> Result<(), ScriptError> {
+    pub fn execute(&mut self, instructions: &[ScriptToken]) -> Result<(), ScriptError> {
         for instruction in instructions {
             match instruction {
                 // 操作码入栈
-                Instruction::Op(opcode) => {
+                ScriptToken::Command(opcode) => {
                     self.count_op(*opcode)?;
                     self.execute_opcode(*opcode)?;
                 }
                 // 数据直接入栈
-                Instruction::PushBytes { data, .. } => {
-                    self.push(data.clone())?;
+                ScriptToken::Data { bytes, .. } => {
+                    self.push(bytes.clone())?;
                 }
             }
             self.check_stack_size()?;
@@ -85,33 +87,15 @@ impl Interpreter {
     }
     fn execute_opcode(&mut self, op_code: OpCode) -> Result<(), ScriptError> {
         match op_code {
-            OpCode::Push(op) => {
-                self.execute_push_op(op)?
-            }
-            OpCode::Control(op) => {
-                self.exec_control_op(op)?
-            }
-            OpCode::Stack(op) => {
-                self.exec_stack_op(op)?
-            }
-            OpCode::Splice(op) => {
-                self.exec_splice_op(op)?
-            }
-            OpCode::BitLogic(op) => {
-                self.exec_bit_logic_op(op)?
-            }
-            OpCode::Numeric(op) => {
-                self.exec_numeric_op(op)?
-            }
-            OpCode::Crypto(op) => {
-                self.exec_crypto_op(op)?
-            }
-            OpCode::Expansion(op) => {
-                self.exec_expansion_op(op)?
-            }
-            OpCode::Invalid(op) => {
-                return Err(ScriptError::InvalidOpcode(op.byte()))
-            }
+            OpCode::Push(op) => self.execute_push_op(op)?,
+            OpCode::Control(op) => self.exec_control_op(op)?,
+            OpCode::Stack(op) => self.exec_stack_op(op)?,
+            OpCode::Splice(op) => self.exec_splice_op(op)?,
+            OpCode::BitLogic(op) => self.exec_bit_logic_op(op)?,
+            OpCode::Numeric(op) => self.exec_numeric_op(op)?,
+            OpCode::Crypto(op) => self.exec_crypto_op(op)?,
+            OpCode::Expansion(op) => self.exec_expansion_op(op)?,
+            OpCode::Invalid(op) => return Err(ScriptError::InvalidOpcode(op.byte())),
         }
         Ok(())
     }
@@ -120,35 +104,110 @@ impl Interpreter {
         match op {
             PushOp::PushData1 | PushOp::PushData2 | PushOp::PushData4 => {
                 /*
-                parser 已经把 PUSHDATA1/2/4 解析成 Instruction::PushBytes，
+                parser 已经把 PUSHDATA1/2/4 解析成 ScriptToken::Data，
                 执行器不应该再看到它们作为 OpCode::Push(PushOp::PushData1/2/4)进入 execute_push_op。
-                如果后续真的遇到，说明绕过了正常路径，或者有人手动构造了不规范的Instruction::Op(OpCode::Push(PushOp::PushData1))。
+                如果后续真的遇到，说明绕过了正常路径，或者有人手动构造了不规范的Instruction::Command(OpCode::Push(PushOp::PushData1))。
                 应该返回UnsupportedScriptForm
                 */
                 return Err(ScriptError::UnsupportedScriptForm);
             }
-            PushOp::Op0 => {}
-
-            PushOp::Op1Negate => {}
+            PushOp::Op0 => self.handle_op0()?,
+            PushOp::Op1Negate => self.handle_op1_negate()?,
             PushOp::OpReserved => {}
-            PushOp::Op1 => {}
-            PushOp::Op2 => {}
-            PushOp::Op3 => {}
-            PushOp::Op4 => {}
-            PushOp::Op5 => {}
-            PushOp::Op6 => {}
-            PushOp::Op7 => {}
-            PushOp::Op8 => {}
-            PushOp::Op9 => {}
-            PushOp::Op10 => {}
-            PushOp::Op11 => {}
-            PushOp::Op12 => {}
-            PushOp::Op13 => {}
-            PushOp::Op14 => {}
-            PushOp::Op15 => {}
-            PushOp::Op16 => {}
+            PushOp::Op1 => self.handle_op1()?,
+            PushOp::Op2 => self.handle_op2()?,
+            PushOp::Op3 => self.handle_op3()?,
+            PushOp::Op4 => self.handle_op4()?,
+            PushOp::Op5 => self.handle_op5()?,
+            PushOp::Op6 => self.handle_op6()?,
+            PushOp::Op7 => self.handle_op7()?,
+            PushOp::Op8 => self.handle_op8()?,
+            PushOp::Op9 => self.handle_op9()?,
+            PushOp::Op10 => self.handle_op10()?,
+            PushOp::Op11 => self.handle_op11()?,
+            PushOp::Op12 => self.handle_op12()?,
+            PushOp::Op13 => self.handle_op13()?,
+            PushOp::Op14 => self.handle_op14()?,
+            PushOp::Op15 => self.handle_op15()?,
+            PushOp::Op16 => self.handle_op16()?,
         }
         Ok(())
+    }
+
+    fn handle_op0(&mut self) -> Result<(), ScriptError> {
+        self.push(Vec::new())
+    }
+
+    fn handle_op1_negate(&mut self) -> Result<(), ScriptError> {
+        self.push(vec![0x81])
+    }
+
+    fn handle_op1(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(1)
+    }
+
+    fn handle_op2(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(2)
+    }
+
+    fn handle_op3(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(3)
+    }
+
+    fn handle_op4(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(4)
+    }
+
+    fn handle_op5(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(5)
+    }
+
+    fn handle_op6(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(6)
+    }
+
+    fn handle_op7(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(7)
+    }
+
+    fn handle_op8(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(8)
+    }
+
+    fn handle_op9(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(9)
+    }
+
+    fn handle_op10(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(10)
+    }
+
+    fn handle_op11(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(11)
+    }
+
+    fn handle_op12(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(12)
+    }
+
+    fn handle_op13(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(13)
+    }
+
+    fn handle_op14(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(14)
+    }
+
+    fn handle_op15(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(15)
+    }
+
+    fn handle_op16(&mut self) -> Result<(), ScriptError> {
+        self.push_script_number(16)
+    }
+
+    fn push_script_number(&mut self, value: u8) -> Result<(), ScriptError> {
+        self.push(vec![value])
     }
 
     fn exec_control_op(&mut self, op: ControlOp) -> Result<(), ScriptError> {
