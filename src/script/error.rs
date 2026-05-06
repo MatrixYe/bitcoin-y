@@ -46,8 +46,8 @@ pub enum ScriptError {
     },
 
     /// 脚本过大
-    #[error("script size exceeds limit")]
-    ScriptTooLarge,
+    #[error("script size exceeds limit:max {max}, actual {actual}")]
+    ScriptTooLarge{ max: usize, actual: usize },
 
     /// 操作码过多
     #[error("too many opcodes")]
@@ -62,8 +62,8 @@ pub enum ScriptError {
     StackOverflow,
 
     /// 脚本元素过多
-    #[error("script element too large")]
-    ElementTooLarge,
+    #[error("script element too large: max {max}, actual {actual}")]
+    ElementTooLarge{ max: usize, actual: usize},
 
     /// 验证失败
     #[error("verify failed")]
