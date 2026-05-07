@@ -77,8 +77,8 @@ impl Interpreter {
                     self.execute_opcode(*opcode)?;
                 }
                 // 数据直接入栈
-                ScriptToken::Data { bytes, .. } => {
-                    self.push(bytes.clone())?;
+                ScriptToken::Data(data) => {
+                    self.push(data.stack_bytes()?)?;
                 }
             }
             self.check_stack_size()?;

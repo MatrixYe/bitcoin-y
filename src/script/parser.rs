@@ -17,31 +17,58 @@ use std::fmt;
 pub enum ScriptToken {
     //表示 parser 已经从脚本字节流里取出一段 payload bytes，执行器只需要把它压栈。
     // 在计算模型中，称之为“数据”，即图灵机中的纸带
-    Data { kind: PushDataKind, bytes: Vec<u8> },
+    Data(ScriptData),
 
     //表示一个具名 opcode，比如 OP_DUP、OP_CHECKSIG。
     // 在计算模型中，称之为“指令”，即图灵机中的状态转移表
     Command(OpCode),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScriptData {
+    Bytes { kind: PushBytesKind, bytes: Vec<u8> },
+    SmallInt(i32),
+}
+
 // 数据压栈方式
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PushDataKind {
+pub enum PushBytesKind {
     Direct(u8), // 直接压栈，地址值表示即将压栈的数据大小
     PushData1,  // 下1个字节表示即将压栈的数据长度，最大u8::MAX
     PushData2,  // 下2个字节表示即将压栈的数据长度，最大u16::MAX
     PushData4,  // 下4个字节表示即将压栈的数据长度，最大u32::MAX
-    SmallInt(i32),
 }
 
-impl fmt::Display for PushDataKind {
+impl ScriptData {
+    // 数据入栈内容
+    pub fn stack_bytes(&self) -> Result<Vec<u8>, ScriptError> {
+        match self {
+            // 如果是字节数据
+            Self::Bytes { bytes, .. } => Ok(bytes.clone()),
+            // 如果是字面量数据，需要转化成入栈数据，原版中用vch表示
+            Self::SmallInt(n) => small_int_bytes(*n),
+        }
+    }
+}
+
+impl fmt::Display for ScriptData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bytes { kind, bytes } => {
+                write!(f, "{kind} len={} bytes=0x{}", bytes.len(), hex::encode(bytes))
+            }
+            Self::SmallInt(n) => write!(f, "OP_SMALLINT({n})"),
+        }
+    }
+}
+
+impl fmt::Display for PushBytesKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Direct(n) => write!(f, "Direct({n})"),
             Self::PushData1 => f.write_str("OP_PUSHDATA1"),
             Self::PushData2 => f.write_str("OP_PUSHDATA2"),
             Self::PushData4 => f.write_str("OP_PUSHDATA4"),
-            Self::SmallInt(n) => write!(f, "OP_SMALLINT({n})"),
         }
     }
 }
@@ -50,9 +77,7 @@ impl fmt::Display for ScriptToken {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Command(opcode) => write!(f, "{opcode}"),
-            Self::Data { kind, bytes } => {
-                write!(f, "{kind} len={} bytes=0x{}", bytes.len(), hex::encode(bytes))
-            }
+            Self::Data(data) => write!(f, "{data}"),
         }
     }
 }
@@ -78,10 +103,10 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
             // 参考v0.3.19 script.h 533行  if (opcode < OP_PUSHDATA1)
             b if (0x01..=0x4b).contains(&b) => {
                 let bytes = read_bytes(script, &mut pc, to_usize(b)?)?;
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::Direct(b),
+                instructions.push(ScriptToken::Data(ScriptData::Bytes {
+                    kind: PushBytesKind::Direct(b),
                     bytes,
-                });
+                }));
             }
 
             // PushData1
@@ -89,10 +114,10 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
             b if b == PushOp::PushData1.byte() => {
                 let delta = read_byte(script, &mut pc)?;
                 let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::PushData1,
+                instructions.push(ScriptToken::Data(ScriptData::Bytes {
+                    kind: PushBytesKind::PushData1,
                     bytes,
-                });
+                }));
             }
             // PushData2
             // PushData2 后面 2 字节小端整数表示数据长度
@@ -100,10 +125,10 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
                 let delta_bytes = read_bytes(script, &mut pc, 2)?;
                 let delta = u16::from_le_bytes([delta_bytes[0], delta_bytes[1]]);
                 let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::PushData2,
+                instructions.push(ScriptToken::Data(ScriptData::Bytes {
+                    kind: PushBytesKind::PushData2,
                     bytes,
-                });
+                }));
             }
             // PushData4
             // PushData4 后面 4 字节小端整数表示数据长度
@@ -116,120 +141,22 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
                     delta_bytes[3],
                 ]);
                 let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::PushData4,
+                instructions.push(ScriptToken::Data(ScriptData::Bytes {
+                    kind: PushBytesKind::PushData4,
                     bytes,
-                });
+                }));
             }
 
             // SmallInt
             b if b == PushOp::Op1Negate.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(-1),
-                    bytes: vec![0x81], // 小端序，[1000 0001] = 0x81
-                });
+                instructions.push(ScriptToken::Data(ScriptData::SmallInt(-1)));
             }
             b if b == PushOp::Op0.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(0),
-                    bytes: Vec::new(), // 0 在bitcoin中使用空向量，而不是[0]
-                });
+                instructions.push(ScriptToken::Data(ScriptData::SmallInt(0)));
             }
-            b if b == PushOp::Op1.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(1),
-                    bytes: vec![1],
-                });
-            }
-            b if b == PushOp::Op2.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(2),
-                    bytes: vec![2],
-                });
-            }
-            b if b == PushOp::Op3.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(3),
-                    bytes: vec![3],
-                });
-            }
-            b if b == PushOp::Op4.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(4),
-                    bytes: vec![4],
-                });
-            }
-            b if b == PushOp::Op5.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(5),
-                    bytes: vec![5],
-                });
-            }
-            b if b == PushOp::Op6.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(6),
-                    bytes: vec![6],
-                });
-            }
-            b if b == PushOp::Op7.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(7),
-                    bytes: vec![7],
-                });
-            }
-            b if b == PushOp::Op8.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(8),
-                    bytes: vec![8],
-                });
-            }
-            b if b == PushOp::Op9.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(9),
-                    bytes: vec![9],
-                });
-            }
-            b if b == PushOp::Op10.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(10),
-                    bytes: vec![10],
-                });
-            }
-            b if b == PushOp::Op11.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(11),
-                    bytes: vec![11],
-                });
-            }
-            b if b == PushOp::Op12.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(12),
-                    bytes: vec![12],
-                });
-            }
-            b if b == PushOp::Op13.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(13),
-                    bytes: vec![13],
-                });
-            }
-            b if b == PushOp::Op14.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(14),
-                    bytes: vec![14],
-                });
-            }
-            b if b == PushOp::Op15.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(15),
-                    bytes: vec![15],
-                });
-            }
-            b if b == PushOp::Op16.byte() => {
-                instructions.push(ScriptToken::Data {
-                    kind: PushDataKind::SmallInt(16),
-                    bytes: vec![16],
-                });
+            b if (PushOp::Op1.byte()..=PushOp::Op16.byte()).contains(&b) => {
+                let value = i32::from(b - (PushOp::Op1.byte() - 1));
+                instructions.push(ScriptToken::Data(ScriptData::SmallInt(value)));
             }
             // Command
             b => {
@@ -259,10 +186,10 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                 script.push(opcode.byte());
             }
             // 数据需要根据push类型
-            ScriptToken::Data { kind, bytes } => {
-                match kind {
+            ScriptToken::Data(data) => {
+                match data {
                     // 直接压栈数据
-                    PushDataKind::Direct(n) => {
+                    ScriptData::Bytes { kind: PushBytesKind::Direct(n), bytes } => {
                         // 检查 n 范围和 bytes.len()
                         // 写入 n
                         // 写入 bytes
@@ -284,7 +211,7 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                         script.extend_from_slice(bytes);
                     }
                     // PushData1
-                    PushDataKind::PushData1 => {
+                    ScriptData::Bytes { kind: PushBytesKind::PushData1, bytes } => {
                         // 检查 bytes.len() <= u8::MAX
                         // 写入 OP_PUSHDATA1
                         // 写入 1 字节长度
@@ -305,7 +232,7 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                     }
 
                     //PushData2
-                    PushDataKind::PushData2 => {
+                    ScriptData::Bytes { kind: PushBytesKind::PushData2, bytes } => {
                         // 检查 bytes.len() <= u16::MAX
                         // 写入 OP_PUSHDATA2
                         // 写入 2 字节小端长度
@@ -326,7 +253,7 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                         script.extend_from_slice(bytes);
                     }
                     //PushData4
-                    PushDataKind::PushData4 => {
+                    ScriptData::Bytes { kind: PushBytesKind::PushData4, bytes } => {
                         // 检查 bytes.len() <= u32::MAX
                         // 写入 OP_PUSHDATA4
                         // 写入 4 字节小端长度
@@ -347,7 +274,7 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                         script.extend_from_slice(bytes);
                     }
                     // SmallInt(n)
-                    PushDataKind::SmallInt(n) => {
+                    ScriptData::SmallInt(n) => {
                         match n {
                             -1 => {
                                 script.push(PushOp::Op1Negate.byte());
@@ -411,6 +338,15 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
         }
     }
     Ok(script)
+}
+
+fn small_int_bytes(n: i32) -> Result<Vec<u8>, ScriptError> {
+    match n {
+        -1 => Ok(vec![0x81]),
+        0 => Ok(Vec::new()),
+        1..=16 => Ok(vec![n as u8]),
+        _ => Err(ScriptError::InvalidSmallInt { n }),
+    }
 }
 
 ///

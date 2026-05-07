@@ -1,5 +1,5 @@
 use bitcoin_y::script::opcode::{BitLogicOp, CryptoOp, OpCode, PushOp, StackOp};
-use bitcoin_y::script::parser::{decode, encode, PushDataKind, ScriptToken};
+use bitcoin_y::script::parser::{decode, encode, PushBytesKind, ScriptData, ScriptToken};
 use bitcoin_y::script::ScriptError;
 
 fn assert_roundtrip(script: &[u8]) {
@@ -29,10 +29,10 @@ fn decode_standard_p2pkh_script_pubkey() {
         vec![
             ScriptToken::Command(OpCode::Stack(StackOp::Dup)),
             ScriptToken::Command(OpCode::Crypto(CryptoOp::Hash160)),
-            ScriptToken::Data {
-                kind: PushDataKind::Direct(20),
+            ScriptToken::Data(ScriptData::Bytes {
+                kind: PushBytesKind::Direct(20),
                 bytes: pubkey_hash.to_vec(),
-            },
+            }),
             ScriptToken::Command(OpCode::BitLogic(BitLogicOp::EqualVerify)),
             ScriptToken::Command(OpCode::Crypto(CryptoOp::CheckSig)),
         ]
@@ -40,12 +40,12 @@ fn decode_standard_p2pkh_script_pubkey() {
 }
 
 #[test]
-fn decode_op0_as_named_opcode_not_push_bytes() {
+fn decode_op0_as_small_int_data() {
     let instructions = decode(&[PushOp::Op0.byte()]).expect("OP_0 should decode");
 
     assert_eq!(
         instructions,
-        vec![ScriptToken::Command(OpCode::Push(PushOp::Op0))]
+        vec![ScriptToken::Data(ScriptData::SmallInt(0))]
     );
 }
 
@@ -57,10 +57,10 @@ fn decode_direct_push_reads_length_from_opcode_byte() {
 
     assert_eq!(
         instructions,
-        vec![ScriptToken::Data {
-            kind: PushDataKind::Direct(3),
+        vec![ScriptToken::Data(ScriptData::Bytes {
+            kind: PushBytesKind::Direct(3),
             bytes: vec![0xaa, 0xbb, 0xcc],
-        }]
+        })]
     );
 }
 
@@ -90,18 +90,18 @@ fn decode_pushdata_variants_read_little_endian_lengths() {
     assert_eq!(
         instructions,
         vec![
-            ScriptToken::Data {
-                kind: PushDataKind::PushData1,
+            ScriptToken::Data(ScriptData::Bytes {
+                kind: PushBytesKind::PushData1,
                 bytes: vec![0x01, 0x02],
-            },
-            ScriptToken::Data {
-                kind: PushDataKind::PushData2,
+            }),
+            ScriptToken::Data(ScriptData::Bytes {
+                kind: PushBytesKind::PushData2,
                 bytes: vec![0x03, 0x04],
-            },
-            ScriptToken::Data {
-                kind: PushDataKind::PushData4,
+            }),
+            ScriptToken::Data(ScriptData::Bytes {
+                kind: PushBytesKind::PushData4,
                 bytes: vec![0x05, 0x06],
-            },
+            }),
         ]
     );
 }
@@ -123,18 +123,18 @@ fn decode_returns_error_when_pushdata_length_field_is_truncated() {
 #[test]
 fn encode_preserves_selected_push_encoding() {
     let instructions = vec![
-        ScriptToken::Data {
-            kind: PushDataKind::PushData1,
+        ScriptToken::Data(ScriptData::Bytes {
+            kind: PushBytesKind::PushData1,
             bytes: vec![0xaa],
-        },
-        ScriptToken::Data {
-            kind: PushDataKind::PushData2,
+        }),
+        ScriptToken::Data(ScriptData::Bytes {
+            kind: PushBytesKind::PushData2,
             bytes: vec![0xbb],
-        },
-        ScriptToken::Data {
-            kind: PushDataKind::PushData4,
+        }),
+        ScriptToken::Data(ScriptData::Bytes {
+            kind: PushBytesKind::PushData4,
             bytes: vec![0xcc],
-        },
+        }),
     ];
 
     let script = encode(&instructions).expect("instructions should encode");
@@ -175,10 +175,10 @@ fn encode_decode_roundtrip_preserves_original_script_bytes() {
 
 #[test]
 fn encode_rejects_direct_push_when_length_does_not_match() {
-    let err = encode(&[ScriptToken::Data {
-        kind: PushDataKind::Direct(2),
+    let err = encode(&[ScriptToken::Data(ScriptData::Bytes {
+        kind: PushBytesKind::Direct(2),
         bytes: vec![0xaa],
-    }])
+    })])
         .expect_err("direct push length must match bytes length");
 
     assert_eq!(
@@ -193,10 +193,10 @@ fn encode_rejects_direct_push_when_length_does_not_match() {
 
 #[test]
 fn encode_rejects_invalid_direct_push_length_byte() {
-    let err = encode(&[ScriptToken::Data {
-        kind: PushDataKind::Direct(0),
+    let err = encode(&[ScriptToken::Data(ScriptData::Bytes {
+        kind: PushBytesKind::Direct(0),
         bytes: Vec::new(),
-    }])
+    })])
         .expect_err("Direct(0) is represented by OP_0 in this parser design");
 
     assert_eq!(err, ScriptError::InvalidPushDataDirect { actual: 0 });
@@ -204,10 +204,10 @@ fn encode_rejects_invalid_direct_push_length_byte() {
 
 #[test]
 fn encode_rejects_pushdata1_payload_that_is_too_large() {
-    let err = encode(&[ScriptToken::Data {
-        kind: PushDataKind::PushData1,
+    let err = encode(&[ScriptToken::Data(ScriptData::Bytes {
+        kind: PushBytesKind::PushData1,
         bytes: vec![0; 256],
-    }])
+    })])
         .expect_err("PUSHDATA1 can encode at most 255 bytes");
 
     assert_eq!(
