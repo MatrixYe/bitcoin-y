@@ -102,36 +102,18 @@ impl Interpreter {
 
     fn execute_push_op(&mut self, op: PushOp) -> Result<(), ScriptError> {
         match op {
-            PushOp::PushData1 | PushOp::PushData2 | PushOp::PushData4 => {
+            PushOp::OpReserved => { Err(ScriptError::ReservedOpcode(op.byte())) }
+            _ => {
                 /*
                 parser 已经把 PUSHDATA1/2/4 解析成 ScriptToken::Data，
+                parser 已经把 Op0~OP16,以及Op1Negate 解析成 ScriptToken::Data，
                 执行器不应该再看到它们作为 OpCode::Push(PushOp::PushData1/2/4)进入 execute_push_op。
                 如果后续真的遇到，说明绕过了正常路径，或者有人手动构造了不规范的Instruction::Command(OpCode::Push(PushOp::PushData1))。
                 应该返回UnsupportedScriptForm
                 */
-                return Err(ScriptError::UnsupportedScriptForm);
+                Err(ScriptError::UnsupportedScriptForm)
             }
-            PushOp::Op0 => self.push(Vec::new())?,
-            PushOp::Op1Negate => self.push(vec![0x81])?,
-            PushOp::OpReserved => return Err(ScriptError::ReservedOpcode(op.byte())),
-            PushOp::Op1 => self.push(vec![1])?,
-            PushOp::Op2 => self.push(vec![2])?,
-            PushOp::Op3 => self.push(vec![3])?,
-            PushOp::Op4 => self.push(vec![4])?,
-            PushOp::Op5 => self.push(vec![5])?,
-            PushOp::Op6 => self.push(vec![6])?,
-            PushOp::Op7 => self.push(vec![7])?,
-            PushOp::Op8 => self.push(vec![8])?,
-            PushOp::Op9 => self.push(vec![9])?,
-            PushOp::Op10 => self.push(vec![10])?,
-            PushOp::Op11 => self.push(vec![11])?,
-            PushOp::Op12 => self.push(vec![12])?,
-            PushOp::Op13 => self.push(vec![13])?,
-            PushOp::Op14 => self.push(vec![14])?,
-            PushOp::Op15 => self.push(vec![15])?,
-            PushOp::Op16 => self.push(vec![16])?,
         }
-        Ok(())
     }
 
     fn exec_control_op(&mut self, op: ControlOp) -> Result<(), ScriptError> {

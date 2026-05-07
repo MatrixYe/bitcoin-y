@@ -85,6 +85,8 @@ pub enum ScriptError {
     #[error("unsupported script form")]
     UnsupportedScriptForm,
 
+    #[error("invalid SmallInt: {n}")]
+    InvalidSmallInt { n: i32 },
     /// 其他
     #[error("{0}")]
     OtherError(String),
