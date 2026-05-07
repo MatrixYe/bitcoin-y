@@ -111,103 +111,27 @@ impl Interpreter {
                 */
                 return Err(ScriptError::UnsupportedScriptForm);
             }
-            PushOp::Op0 => self.handle_op0()?,
-            PushOp::Op1Negate => self.handle_op1_negate()?,
-            PushOp::OpReserved => {}
-            PushOp::Op1 => self.handle_op1()?,
-            PushOp::Op2 => self.handle_op2()?,
-            PushOp::Op3 => self.handle_op3()?,
-            PushOp::Op4 => self.handle_op4()?,
-            PushOp::Op5 => self.handle_op5()?,
-            PushOp::Op6 => self.handle_op6()?,
-            PushOp::Op7 => self.handle_op7()?,
-            PushOp::Op8 => self.handle_op8()?,
-            PushOp::Op9 => self.handle_op9()?,
-            PushOp::Op10 => self.handle_op10()?,
-            PushOp::Op11 => self.handle_op11()?,
-            PushOp::Op12 => self.handle_op12()?,
-            PushOp::Op13 => self.handle_op13()?,
-            PushOp::Op14 => self.handle_op14()?,
-            PushOp::Op15 => self.handle_op15()?,
-            PushOp::Op16 => self.handle_op16()?,
+            PushOp::Op0 => self.push(Vec::new())?,
+            PushOp::Op1Negate => self.push(vec![0x81])?,
+            PushOp::OpReserved => return Err(ScriptError::ReservedOpcode(op.byte())),
+            PushOp::Op1 => self.push(vec![1])?,
+            PushOp::Op2 => self.push(vec![2])?,
+            PushOp::Op3 => self.push(vec![3])?,
+            PushOp::Op4 => self.push(vec![4])?,
+            PushOp::Op5 => self.push(vec![5])?,
+            PushOp::Op6 => self.push(vec![6])?,
+            PushOp::Op7 => self.push(vec![7])?,
+            PushOp::Op8 => self.push(vec![8])?,
+            PushOp::Op9 => self.push(vec![9])?,
+            PushOp::Op10 => self.push(vec![10])?,
+            PushOp::Op11 => self.push(vec![11])?,
+            PushOp::Op12 => self.push(vec![12])?,
+            PushOp::Op13 => self.push(vec![13])?,
+            PushOp::Op14 => self.push(vec![14])?,
+            PushOp::Op15 => self.push(vec![15])?,
+            PushOp::Op16 => self.push(vec![16])?,
         }
         Ok(())
-    }
-
-    fn handle_op0(&mut self) -> Result<(), ScriptError> {
-        self.push(Vec::new())
-    }
-
-    fn handle_op1_negate(&mut self) -> Result<(), ScriptError> {
-        self.push(vec![0x81])
-    }
-
-    fn handle_op1(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(1)
-    }
-
-    fn handle_op2(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(2)
-    }
-
-    fn handle_op3(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(3)
-    }
-
-    fn handle_op4(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(4)
-    }
-
-    fn handle_op5(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(5)
-    }
-
-    fn handle_op6(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(6)
-    }
-
-    fn handle_op7(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(7)
-    }
-
-    fn handle_op8(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(8)
-    }
-
-    fn handle_op9(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(9)
-    }
-
-    fn handle_op10(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(10)
-    }
-
-    fn handle_op11(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(11)
-    }
-
-    fn handle_op12(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(12)
-    }
-
-    fn handle_op13(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(13)
-    }
-
-    fn handle_op14(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(14)
-    }
-
-    fn handle_op15(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(15)
-    }
-
-    fn handle_op16(&mut self) -> Result<(), ScriptError> {
-        self.push_script_number(16)
-    }
-
-    fn push_script_number(&mut self, value: u8) -> Result<(), ScriptError> {
-        self.push(vec![value])
     }
 
     fn exec_control_op(&mut self, op: ControlOp) -> Result<(), ScriptError> {

@@ -10,6 +10,10 @@ pub enum ScriptError {
     #[error("disabled opcode: 0x{0:02x}")]
     DisabledOpcode(u8),
 
+    /// 保留指令
+    #[error("reserved opcode: 0x{0:02x}")]
+    ReservedOpcode(u8),
+
     /// 脚本意外中断
     #[error("unexpected end of script")]
     UnexpectedEndOfScript,
