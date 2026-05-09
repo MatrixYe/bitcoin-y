@@ -71,14 +71,15 @@ impl Interpreter {
     pub fn execute(&mut self, instructions: &[ScriptToken]) -> Result<(), ScriptError> {
         for instruction in instructions {
             match instruction {
+
+                // 数据直接入栈
+                ScriptToken::Data(data) => {
+                    self.push(data.stack_bytes()?)?;
+                }
                 // 操作码入栈
                 ScriptToken::Command(opcode) => {
                     self.count_op(*opcode)?;
                     self.execute_opcode(*opcode)?;
-                }
-                // 数据直接入栈
-                ScriptToken::Data(data) => {
-                    self.push(data.stack_bytes()?)?;
                 }
             }
             self.check_stack_size()?;
@@ -102,7 +103,9 @@ impl Interpreter {
 
     fn execute_push_op(&mut self, op: PushOp) -> Result<(), ScriptError> {
         match op {
-            PushOp::OpReserved => { Err(ScriptError::ReservedOpcode(op.byte())) }
+            PushOp::OpReserved => {
+                Err(ScriptError::ReservedOpcode(op.byte()))
+            }
             _ => {
                 /*
                 parser 已经把 PUSHDATA1/2/4 解析成 ScriptToken::Data，
@@ -247,4 +250,25 @@ impl Interpreter {
         }
         Ok(())
     }
+
+    //-----//
+    fn should_execute(&self) -> bool {
+        self.exec_stack.iter().any(|&v| !v)
+    }
+}
+
+fn is_conditional_control_op(op: ControlOp) -> bool {
+    matches!(op,
+        ControlOp::If
+        | ControlOp::NotIf
+        | ControlOp::Else
+        | ControlOp::VerIf
+        | ControlOp::VerNotIf
+        | ControlOp::EndIf
+    )
+}
+
+fn cast_to_bool(v: &[u8]) -> bool {
+    // todo 负零判断还不完全
+    !(v.is_empty() | v.iter().all(|&x| x == 0) | (v == [0x80]))
 }
