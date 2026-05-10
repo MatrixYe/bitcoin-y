@@ -65,6 +65,10 @@ pub enum ScriptError {
     #[error("stack overflow")]
     StackOverflow,
 
+    /// 栈索引非法
+    #[error("invalid stack index: index {index}, stack length {len}")]
+    InvalidStackIndex { index: i64, len: usize },
+
     /// 脚本元素过多
     #[error("script element too large: max {max}, actual {actual}")]
     ElementTooLarge { max: usize, actual: usize },
@@ -87,6 +91,12 @@ pub enum ScriptError {
 
     #[error("invalid SmallInt: {n}")]
     InvalidSmallInt { n: i32 },
+
+    /// 脚本数字过大
+    ///  参考 v0.3.19 CastToBigNum：普通数值操作最多接受 4 字节。
+    #[error("script number overflow: max {max} bytes, actual {actual} bytes")]
+    ScriptNumOverflow { max: usize, actual: usize },
+
     /// 其他
     #[error("{0}")]
     OtherError(String),
