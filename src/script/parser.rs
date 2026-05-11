@@ -340,8 +340,9 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
     Ok(script)
 }
 
-// 对于Op-n之类的操作符，0是压入空向量，-1 是压入[0x81] =1000 0001
-// 其余的是直接压入字面量组成的向量 1 => [1],2 => [2]
+/// 对于Op-n之类的操作符，0是压入空向量，-1 是压入[0x81] =1000 0001
+///
+/// 其余的是直接压入字面量组成的向量 1 => [1],2 => [2]
 fn small_int_bytes(n: i32) -> Result<Vec<u8>, ScriptError> {
     match n {
         -1 => Ok(vec![0x81]),

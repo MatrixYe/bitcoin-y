@@ -7,7 +7,7 @@ use crate::script::ScriptError;
 
 
 pub type Stack = Vec<Vec<u8>>;
-
+pub type ScriptNum = Vec<u8>;
 #[derive(Debug, Clone, Default)]
 pub struct Interpreter {
     // 主栈
@@ -181,7 +181,7 @@ impl Interpreter {
     ///
     /// OP_2OVER: 复制更深处的两个元素到栈顶,要求至少 4 个元素。`[x1, x2, x3, x4] -> [x1, x2, x3, x4, x1, x2]`
     ///
-    /// OP_IFDUP: 复制更深处的两个元素到栈顶,要求至少 4 个元素。`[x] -> [x, x] | [x]`  如果 x 为 true
+    /// OP_IFDUP: 如果栈顶为真，复制栈顶元素；要求至少 1 个元素。`[x] -> [x, x] | [x]`
     ///
     /// OP_SWAP: 交换栈顶两个元素,要求至少 2 个元素。`[x1, x2] -> [x2, x1]`
     ///
@@ -195,9 +195,9 @@ impl Interpreter {
     ///
     /// OP_DEPTH: 把当前主栈元素数量压栈。原版用 `CBigNum(stack.size()).getvch()`。`[] -> [0] ; [x1, x2]  -> [x1, x2, 2]`
     ///
-    /// OP_PICK: 先从栈顶取出数字 n，然后复制距离栈顶第 n 个元素到栈顶。n = 0 表示复制原来的栈顶元素。要求至少 2 个元素，且 n >= 0 && n < stack.len()。`[xn, ..., x2, x1, x0, n] -> [xn, ..., x2, x1, x0, xn]`
+    /// OP_PICK: 先从栈顶取出数字 n，然后复制距离栈顶第 n 个元素到栈顶。n = 0 表示复制原来的栈顶元素。要求至少 2 个元素，且 n >= 0 && n < stack.len()。`[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x2,x3,x4,x2]`
     ///
-    /// OP_ROLL: 和 OP_PICK 类似，但不是复制，而是把那个元素移动到栈顶。原版在取出目标元素后，如果是 OP_ROLL，会从原位置删除它。`[xn, ..., x2, x1, x0, n] -> [..., x2, x1, x0, xn]`
+    /// OP_ROLL: 和 OP_PICK 类似，但不是复制，而是把那个元素移动到栈顶。原版在取出目标元素后，如果是 OP_ROLL，会从原位置删除它。`[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x3,x4,x2]`
     ///
     fn exec_stack_op(&mut self, op: StackOp) -> Result<(), ScriptError> {
         // 19个opcode
@@ -227,7 +227,7 @@ impl Interpreter {
                 self.require_stack(1)?;
                 let len = self.stack_len();
                 let value = self.stack[len - 1].clone();
-                if cast_to_bool(&value) {
+                if cast_script_num_to_bool(&value) {
                     self.push(value)?;
                 }
             }
@@ -268,7 +268,7 @@ impl Interpreter {
 
             // OP_TUCK: 复制栈顶元素，并插入到两个元素下面。
             // 要求至少 2 个元素。
-            // `[x1, x2] -> [x2, x1, x2]`
+            // `[x0,x1, x2] -> [x0,x2, x1, x2]`
             StackOp::Tuck => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
@@ -295,7 +295,6 @@ impl Interpreter {
                 let len = self.stack_len();
                 self.stack.remove(len - 2);
             }
-
 
             // 交换主栈顶两个元素
             // [x1,x2,x3] => [x1,x3,x2]
@@ -334,23 +333,22 @@ impl Interpreter {
 
 
             // 将当前主栈深度压栈
+            // `[x0,x1,x2,x3] -> [x0,x1,x2,x3,4]`
             StackOp::Depth => {
-                let depth = cast_to_script_num(self.stack_len() as i64);
+                let depth = cast_i64_to_script_num(self.stack_len() as i64);
                 self.push(depth)?;
             }
 
-            //复制指定深度的元素到栈顶
-            //先从栈顶取出数字 n，然后复制距离栈顶第 n 个元素到栈顶。
-            // n = 0 表示复制原来的栈顶元素。
-            // 要求至少 2 个元素，且 n >= 0 && n < stack.len()。
-            // `[xn, ..., x2, x1, x0, n] -> [xn, ..., x2, x1, x0, xn]`
+            // Pick:复制指定深度的元素到栈顶：取出栈顶元素作为深度 n，然后获取深度 n 的元素，并复制到栈顶。
+            // `[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x2,x3,x4,x2]`
             StackOp::Pick => {
                 let index = self.pick_or_roll_index()?;
                 let value = self.stack[index].clone();
                 self.push(value)?;
             }
 
-            // 移动指定深度的元素到栈顶
+            // Roll:移动指定深度的元素到栈顶：取出栈顶元素作为深度 n，然后获取深度 n 的元素，并移动到栈顶。
+            // `[x0,x1,x2,x3,x4,x5=3] -> [x0,x2,x3,x4,x2]`
             StackOp::Roll => {
                 let index = self.pick_or_roll_index()?;
                 let value = self.stack.remove(index);
@@ -456,11 +454,16 @@ impl Interpreter {
         !self.vf_exec.iter().any(|&v| !v)
     }
 
-    // todo 添加注释
+    /// OP_PICK / OP_ROLL 都先从栈顶弹出一个 ScriptNum，作为目标元素的深度 n。
+    ///
+    /// n = 0 表示当前栈顶；n = 1 表示栈顶下面一个元素。
+    ///
+    /// 弹出 n 之后，再在剩余主栈中计算真实数组下标。
+    ///
+    /// 返回：真实下标x
     fn pick_or_roll_index(&mut self) -> Result<usize, ScriptError> {
         self.require_stack(2)?;
-
-        let n = cast_to_i64(&self.pop()?)?;
+        let n = cast_script_num_to_i64(&self.pop()?)?;
         let len = self.stack_len();
         if n < 0 || n as usize >= len {
             return Err(ScriptError::InvalidStackIndex { index: n, len });
@@ -481,10 +484,28 @@ fn is_conditional_control_op(op: ControlOp) -> bool {
     )
 }
 
-// todo 添加注释
-fn cast_to_script_num(value: i64) -> Vec<u8> {
-    // 把 Rust 整数转换成 Bitcoin Script 栈中的数字字节。
-    // Script 数字使用小端序，最高有效字节的最高位表示符号；0 使用空向量表示。
+/// 把 Rust 整数转换成 Bitcoin Script 使用的数字字节。规则：
+///
+/// 1. 0 不写成 [0]，而是写成空向量 []。
+///
+/// 2. 绝对值按小端序存储，低位字节在前。
+///
+/// 3. 最高有效字节的最高位是符号位，1 表示负数。
+///
+/// 4. 如果正数最高有效字节本身已经占用了 0x80，需要额外补一个 0x00，避免被误判为负数。
+///
+/// 实际例子：
+///
+/// | i64 | ScriptNum |
+/// | --- | --- |
+/// | `0` | `[]` |
+/// | `1` | `[0x01]` |
+/// | `-1` | `[0x81]` |
+/// | `127` | `[0x7f]` |
+/// | `128` | `[0x80, 0x00]` |
+/// | `-128` | `[0x80, 0x80]` |
+/// | `256` | `[0x00, 0x01]` |
+fn cast_i64_to_script_num(value: i64) -> ScriptNum {
     if value == 0 {
         return Vec::new();
     }
@@ -498,27 +519,49 @@ fn cast_to_script_num(value: i64) -> Vec<u8> {
         abs >>= 8;
     }
 
-    let last = result.last_mut().expect("non-zero value has at least one byte");
-    if *last & 0x80 != 0 {
+    let last_index = result.len() - 1;
+    if result[last_index] & 0x80 != 0 {
         result.push(if negative { 0x80 } else { 0x00 });
     } else if negative {
-        *last |= 0x80;
+        result[last_index] |= 0x80;
     }
 
     result
 }
 
-// todo 添加注释
-fn cast_to_i64(v: &[u8]) -> Result<i64, ScriptError> {
-    // 把 Bitcoin Script 栈中的数字字节解释成 Rust 整数。
-    // 参考 v0.3.19 CastToBigNum：普通数值操作最多接受 4 字节。
+/// 把 Bitcoin Script 数字字节解释成 Rust 整数。
+///
+/// 规则与 cast_i64_to_script_num 反向对应：
+///
+/// 1. 空向量 [] 表示 0。
+///
+/// 2. 字节按小端序累加，低位字节在前。
+///
+/// 3. 最后一个字节的 0x80 只表示符号，不参与绝对值计算，所以读取前要清掉该位。
+///
+/// 4. v0.3.19 中 CastToBigNum 限制普通数值最多 4 字节，我保留这个限制。
+///
+/// 实际例子：
+///
+/// | ScriptNum | i64 |
+/// | --- | --- |
+/// | `[]` | `0` |
+/// | `[0x01]` | `1` |
+/// | `[0x81]` | `-1` |
+/// | `[0x7f]` | `127` |
+/// | `[0x80, 0x00]` | `128` |
+/// | `[0x80, 0x80]` | `-128` |
+/// | `[0x00, 0x01]` | `256` |
+fn cast_script_num_to_i64(v: &[u8]) -> Result<i64, ScriptError> {
+
+    // 字节数字的大小限制
     if v.len() > MAX_SCRIPT_NUM_SIZE {
         return Err(ScriptError::ScriptNumOverflow {
             max: MAX_SCRIPT_NUM_SIZE,
             actual: v.len(),
         });
     }
-
+    // 空数组表示0
     if v.is_empty() {
         return Ok(0);
     }
@@ -539,11 +582,27 @@ fn cast_to_i64(v: &[u8]) -> Result<i64, ScriptError> {
     }
 }
 
-// todo 添加注释
-fn cast_to_bool(v: &[u8]) -> bool {
-    // Bitcoin Script 的布尔值不是独立类型，而是从栈元素字节解释出来：
-    // 空字节、全 0、以及负零（最高有效字节为 0x80 且其余为 0）都为 false。
-    // 只要出现非零字节，并且它不是最后一个字节上的负号位，就为 true。
+/// Bitcoin Script 的布尔值不是独立类型，而是从栈元素字节解释出来。
+///
+/// false 的情况：空向量、所有字节都是 0、负零。
+///
+/// 负零的典型形式是 [0x80]，也可能是 [0x00, 0x80] 这类“只有符号位非零”的形式。
+///
+/// 因此这里从低位到高位扫描：遇到普通非零字节就是真；如果唯一非零字节是最后一个字节的 0x80，则是假。
+///
+/// 实际例子：
+///
+/// | ScriptNum | bool |
+/// | --- | --- |
+/// | `[]` | `false` |
+/// | `[0x00]` | `false` |
+/// | `[0x00, 0x00]` | `false` |
+/// | `[0x80]` | `false` |
+/// | `[0x00, 0x80]` | `false` |
+/// | `[0x01]` | `true` |
+/// | `[0x81]` | `true` |
+/// | `[0x80, 0x00]` | `true` |
+fn cast_script_num_to_bool(v: &[u8]) -> bool {
     for (index, byte) in v.iter().enumerate() {
         if *byte == 0 {
             continue;
