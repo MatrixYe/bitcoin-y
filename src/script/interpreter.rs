@@ -1,20 +1,21 @@
 use crate::script::consts::{MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE};
 use crate::script::opcode::{
-    BitLogicOp, ControlOp, CryptoOp, ExpansionOp, NumericOp, OpCode, PushOp, SpliceOp, StackOp,
+    BitLogic, Control, Crypto, Expansion, Numeric, OpCode, PushValue, Splice, Stack,
 };
 use crate::script::parser::ScriptToken;
 use crate::script::ScriptError;
 
 
-pub type Stack = Vec<Vec<u8>>;
-pub type ScriptNum = Vec<u8>;
+type StackType = Vec<Vec<u8>>; //别名，栈
+type ScriptNumType = Vec<u8>; // 别名，栈内数字
+
 #[derive(Debug, Clone, Default)]
 pub struct Interpreter {
     // 主栈
-    pub stack: Stack,
-    // 备用栈,提供一个临时存放区只通过 OP_TOALTSTACK / OP_FROMALTSTACK 显式移动数据。
+    pub stack: StackType,
+    // 备用栈,提供一个临时存放区只通过 OP_TOALSTACK / OP_FROMALSTACK 显式移动数据。
 
-    alt_stack: Stack,
+    alt_stack: StackType,
 
     // 条件执行栈（非数据栈） OP_IF / OP_ELSE / OP_ENDIF 时使用
     vf_exec: Vec<bool>,
@@ -30,7 +31,7 @@ impl Interpreter {
     }
     // 使用已有主栈构造
     // 用于执行 scriptSig 后继续执行 scriptPubKey。
-    pub fn with_stack(stack: Stack) -> Self {
+    pub fn with_stack(stack: StackType) -> Self {
         Self {
             stack,
             ..Self::default()
@@ -81,7 +82,7 @@ impl Interpreter {
     }
     // 统计opcode数量
     fn count_op(&mut self, code: OpCode) -> Result<(), ScriptError> {
-        if code.byte() > PushOp::Op16.byte() {
+        if code.byte() > PushValue::Op16.byte() {
             self.op_count += 1;
             if self.op_count > MAX_OPS_PER_SCRIPT {
                 return Err(ScriptError::TooManyOps);
@@ -113,30 +114,30 @@ impl Interpreter {
     }
     fn execute_opcode(&mut self, op_code: OpCode) -> Result<(), ScriptError> {
         match op_code {
-            OpCode::Push(op) => self.execute_push_op(op)?,
-            OpCode::Control(op) => self.exec_control_op(op)?,
-            OpCode::Stack(op) => self.exec_stack_op(op)?,
-            OpCode::Splice(op) => self.exec_splice_op(op)?,
-            OpCode::BitLogic(op) => self.exec_bit_logic_op(op)?,
-            OpCode::Numeric(op) => self.exec_numeric_op(op)?,
-            OpCode::Crypto(op) => self.exec_crypto_op(op)?,
-            OpCode::Expansion(op) => self.exec_expansion_op(op)?,
+            OpCode::Push(op) => self.execute_push_ops(op)?,
+            OpCode::Control(op) => self.exec_control_ops(op)?,
+            OpCode::Stack(op) => self.exec_stack_ops(op)?,
+            OpCode::Splice(op) => self.exec_splice_ops(op)?,
+            OpCode::BitLogic(op) => self.exec_bit_logic_ops(op)?,
+            OpCode::Numeric(op) => self.exec_numeric_ops(op)?,
+            OpCode::Crypto(op) => self.exec_crypto_ops(op)?,
+            OpCode::Expansion(op) => self.exec_expansion_ops(op)?,
             OpCode::Invalid(op) => return Err(ScriptError::InvalidOpcode(op.byte())),
         }
         Ok(())
     }
 
-    fn execute_push_op(&mut self, op: PushOp) -> Result<(), ScriptError> {
+    fn execute_push_ops(&mut self, op: PushValue) -> Result<(), ScriptError> {
         match op {
-            PushOp::OpReserved => {
+            PushValue::OpReserved => {
                 Err(ScriptError::ReservedOpcode(op.byte()))
             }
             _ => {
                 /*
                 parser 已经把 PUSHDATA1/2/4 解析成 ScriptToken::Data，
                 parser 已经把 Op0~OP16,以及Op1Negate 解析成 ScriptToken::Data，
-                执行器不应该再看到它们作为 OpCode::Push(PushOp::PushData1/2/4)进入 execute_push_op。
-                如果后续真的遇到，说明绕过了正常路径，或者有人手动构造了不规范的Instruction::Command(OpCode::Push(PushOp::PushData1))。
+                执行器不应该再看到它们作为 OpCode::Push(PushValue::PushData1/2/4)进入 execute_push_ops。
+                如果后续真的遇到，说明绕过了正常路径，或者有人手动构造了不规范的Instruction::Command(OpCode::Push(PushValue::PushData1))。
                 应该返回UnsupportedScriptForm
                 */
                 Err(ScriptError::UnsupportedScriptForm)
@@ -144,18 +145,18 @@ impl Interpreter {
         }
     }
 
-    fn exec_control_op(&mut self, op: ControlOp) -> Result<(), ScriptError> {
+    fn exec_control_ops(&mut self, op: Control) -> Result<(), ScriptError> {
         match op {
-            ControlOp::Nop => {}
-            ControlOp::Ver => {}
-            ControlOp::If => {}
-            ControlOp::NotIf => {}
-            ControlOp::VerIf => {}
-            ControlOp::VerNotIf => {}
-            ControlOp::Else => {}
-            ControlOp::EndIf => {}
-            ControlOp::Verify => {}
-            ControlOp::Return => {}
+            Control::OpNop => {}
+            Control::OpVer => {}
+            Control::OpIf => {}
+            Control::OpNotIf => {}
+            Control::OpVerIf => {}
+            Control::OpVerNotIf => {}
+            Control::OpElse => {}
+            Control::OpEndIf => {}
+            Control::OpVerify => {}
+            Control::OpReturn => {}
         }
         Ok(())
     }
@@ -199,23 +200,23 @@ impl Interpreter {
     ///
     /// OP_ROLL: 和 OP_PICK 类似，但不是复制，而是把那个元素移动到栈顶。原版在取出目标元素后，如果是 OP_ROLL，会从原位置删除它。`[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x3,x4,x2]`
     ///
-    fn exec_stack_op(&mut self, op: StackOp) -> Result<(), ScriptError> {
+    fn exec_stack_ops(&mut self, op: Stack) -> Result<(), ScriptError> {
         // 19个opcode
         match op {
             // 将主栈栈顶移动到备用栈 `主栈:[x] -> [] ;备用栈:[]  -> [x]`
-            StackOp::ToAltStack => {
+            Stack::OpToAltStack => {
                 let value = self.pop()?;
                 self.alt_stack.push(value);
             }
 
             //将备用栈栈顶移动到主栈
-            StackOp::FromAltStack => {
+            Stack::OpFromAltStack => {
                 let value = self.pop_alt()?;
                 self.push(value)?;
             }
 
             //复制主栈栈顶 `[x] -> [x, x]`
-            StackOp::Dup => {
+            Stack::OpDup => {
                 self.require_stack(1)?;
                 let len = self.stack_len();
                 let last = self.stack[len - 1].clone();
@@ -223,7 +224,7 @@ impl Interpreter {
             }
 
             //栈顶为真时复制栈顶
-            StackOp::IfDup => {
+            Stack::OpIfDup => {
                 self.require_stack(1)?;
                 let len = self.stack_len();
                 let value = self.stack[len - 1].clone();
@@ -234,7 +235,7 @@ impl Interpreter {
 
             //复制主栈顶两个元素
             //`[x1, x2] -> [x1, x2, x1, x2]`
-            StackOp::Op2Dup => {
+            Stack::Op2Dup => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
                 self.stack.extend_from_within(len - 2..len);
@@ -242,7 +243,7 @@ impl Interpreter {
 
             //复制主栈顶三个元素
             //`[x1, x2, x3] -> [x1, x2, x3, x1, x2, x3]`
-            StackOp::Op3Dup => {
+            Stack::Op3Dup => {
                 self.require_stack(3)?;
                 let len = self.stack_len();
                 self.stack.extend_from_within(len - 3..len);
@@ -251,7 +252,7 @@ impl Interpreter {
 
             //复制“栈顶下面的元素”到栈顶,要求至少 2 个元素。
             // `[x1, x2] -> [x1, x2, x1]`
-            StackOp::Over => {
+            Stack::OpOver => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
                 self.stack.push(self.stack[len - 2].clone());
@@ -259,7 +260,7 @@ impl Interpreter {
 
             //复制主栈中指定的两个较深元素到栈顶
             //`[x1, x2, x3, x4] -> [x1, x2, x3, x4, x1, x2]`
-            StackOp::Op2Over => {
+            Stack::Op2Over => {
                 self.require_stack(4)?;
                 let len = self.stack_len();
                 self.stack.extend_from_within(len - 4..len - 2);
@@ -269,7 +270,7 @@ impl Interpreter {
             // OP_TUCK: 复制栈顶元素，并插入到两个元素下面。
             // 要求至少 2 个元素。
             // `[x0,x1, x2] -> [x0,x2, x1, x2]`
-            StackOp::Tuck => {
+            Stack::OpTuck => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
                 let v = self.stack[len - 1].clone();
@@ -277,12 +278,12 @@ impl Interpreter {
             }
 
             //删除主栈顶 1 个元素,要求至少 1 个元素。`[x] -> []`
-            StackOp::Drop => {
+            Stack::OpDrop => {
                 self.pop()?;
             }
             //丢弃主栈顶两个元素
             //`[x1, x2] -> []`
-            StackOp::Op2Drop => {
+            Stack::Op2Drop => {
                 self.require_stack(2)?;
                 self.pop()?;
                 self.pop()?;
@@ -290,7 +291,7 @@ impl Interpreter {
 
             //删除栈顶下方的一个元素
             //[x1, x2] -> [x2]
-            StackOp::Nip => {
+            Stack::OpNip => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
                 self.stack.remove(len - 2);
@@ -298,14 +299,14 @@ impl Interpreter {
 
             // 交换主栈顶两个元素
             // [x1,x2,x3] => [x1,x3,x2]
-            StackOp::Swap => {
+            Stack::OpSwap => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
                 self.stack.swap(len - 2, len - 1);
             }
             //交换主栈顶两组双元素
             // [x0,x1,x2,x3] => [x2,x3,x0,x1]
-            StackOp::Op2Swap => {
+            Stack::Op2Swap => {
                 self.require_stack(4)?;
                 let len = self.stack_len();
                 self.stack.swap(len - 4, len - 2); //0,2
@@ -313,7 +314,7 @@ impl Interpreter {
             }
             // 旋转主栈顶三个元素
             // [x0,x1,x2] => [x1,x0,x2] => [x1,x2,x0]
-            StackOp::Rot => {
+            Stack::OpRot => {
                 self.require_stack(3)?;
                 let len = self.stack_len();
                 self.stack.swap(len - 3, len - 2); //0,1
@@ -322,7 +323,7 @@ impl Interpreter {
 
             // 把第三组元素旋转到栈顶,要求至少 6 个元素,原版用两次 swap 实现。
             // [x0,x1,x2,x3,x4,x5] => [[x0,x1],[x2,x3],[x4,x5]] => [[x2,x3],[x4,x5],[x0,x1]] => [x2,x3,x4,x5,x0,x1]
-            StackOp::Op2Rot => {
+            Stack::Op2Rot => {
                 self.require_stack(6)?;
                 let len = self.stack_len();
                 // 取出栈中较深的2个元素
@@ -334,14 +335,14 @@ impl Interpreter {
 
             // 将当前主栈深度压栈
             // `[x0,x1,x2,x3] -> [x0,x1,x2,x3,4]`
-            StackOp::Depth => {
+            Stack::OpDepth => {
                 let depth = cast_i64_to_script_num(self.stack_len() as i64);
                 self.push(depth)?;
             }
 
             // Pick:复制指定深度的元素到栈顶：取出栈顶元素作为深度 n，然后获取深度 n 的元素，并复制到栈顶。
             // `[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x2,x3,x4,x2]`
-            StackOp::Pick => {
+            Stack::OpPick => {
                 let index = self.pick_or_roll_index()?;
                 let value = self.stack[index].clone();
                 self.push(value)?;
@@ -349,7 +350,7 @@ impl Interpreter {
 
             // Roll:移动指定深度的元素到栈顶：取出栈顶元素作为深度 n，然后获取深度 n 的元素，并移动到栈顶。
             // `[x0,x1,x2,x3,x4,x5=3] -> [x0,x2,x3,x4,x2]`
-            StackOp::Roll => {
+            Stack::OpRoll => {
                 let index = self.pick_or_roll_index()?;
                 let value = self.stack.remove(index);
                 self.push(value)?;
@@ -358,17 +359,17 @@ impl Interpreter {
         Ok(())
     }
 
-    fn exec_splice_op(&mut self, op: SpliceOp) -> Result<(), ScriptError> {
+    fn exec_splice_ops(&mut self, op: Splice) -> Result<(), ScriptError> {
         match op {
-            SpliceOp::Cat => {}
-            SpliceOp::SubStr => {}
-            SpliceOp::Left => {}
-            SpliceOp::Right => {}
-            SpliceOp::Size => {}
+            Splice::OpCat => {}
+            Splice::OpSubStr => {}
+            Splice::OpLeft => {}
+            Splice::OpRight => {}
+            Splice::OpSize => {}
         }
         Ok(())
     }
-    /// ----BitLogicOp-----
+    /// ----BitLogic-----
     ///
     /// Invert:
     ///
@@ -386,84 +387,82 @@ impl Interpreter {
     ///
     /// Reserved2:
     ///
-    fn exec_bit_logic_op(&mut self, op: BitLogicOp) -> Result<(), ScriptError> {
+    fn exec_bit_logic_ops(&mut self, op: BitLogic) -> Result<(), ScriptError> {
         match op {
-            BitLogicOp::Invert => {
-
-            }
-            BitLogicOp::And => {}
-            BitLogicOp::Or => {}
-            BitLogicOp::Xor => {}
-            BitLogicOp::Equal => {}
-            BitLogicOp::EqualVerify => {}
-            BitLogicOp::Reserved1 => {}
-            BitLogicOp::Reserved2 => {}
+            BitLogic::OpInvert => {}
+            BitLogic::OpAnd => {}
+            BitLogic::OpOr => {}
+            BitLogic::OpXor => {}
+            BitLogic::OpEqual => {}
+            BitLogic::OpEqualVerify => {}
+            BitLogic::OpReserved1 => {}
+            BitLogic::OpReserved2 => {}
         }
         Ok(())
     }
 
-    fn exec_numeric_op(&mut self, op: NumericOp) -> Result<(), ScriptError> {
+    fn exec_numeric_ops(&mut self, op: Numeric) -> Result<(), ScriptError> {
         match op {
-            NumericOp::Op1Add => {}
-            NumericOp::Op1Sub => {}
-            NumericOp::Op2Mul => {}
-            NumericOp::Op2Div => {}
-            NumericOp::Negate => {}
-            NumericOp::Abs => {}
-            NumericOp::Not => {}
-            NumericOp::Op0NotEqual => {}
-            NumericOp::Add => {}
-            NumericOp::Sub => {}
-            NumericOp::Mul => {}
-            NumericOp::Div => {}
-            NumericOp::Mod => {}
-            NumericOp::LShift => {}
-            NumericOp::RShift => {}
-            NumericOp::BoolAnd => {}
-            NumericOp::BoolOr => {}
-            NumericOp::NumEqual => {}
-            NumericOp::NumEqualVerify => {}
-            NumericOp::NumNotEqual => {}
-            NumericOp::LessThan => {}
-            NumericOp::GreaterThan => {}
-            NumericOp::LessThanOrEqual => {}
-            NumericOp::GreaterThanOrEqual => {}
-            NumericOp::Min => {}
-            NumericOp::Max => {}
-            NumericOp::Within => {}
+            Numeric::Op1Add => {}
+            Numeric::Op1Sub => {}
+            Numeric::Op2Mul => {}
+            Numeric::Op2Div => {}
+            Numeric::OpNegate => {}
+            Numeric::OpAbs => {}
+            Numeric::OpNot => {}
+            Numeric::OpOp0NotEqual => {}
+            Numeric::OpAdd => {}
+            Numeric::OpSub => {}
+            Numeric::OpMul => {}
+            Numeric::OpDiv => {}
+            Numeric::OpMod => {}
+            Numeric::OpLShift => {}
+            Numeric::OpRShift => {}
+            Numeric::OpBoolAnd => {}
+            Numeric::OpBoolOr => {}
+            Numeric::OpNumEqual => {}
+            Numeric::OpNumEqualVerify => {}
+            Numeric::OpNumNotEqual => {}
+            Numeric::OpLessThan => {}
+            Numeric::OpGreaterThan => {}
+            Numeric::OpLessThanOrEqual => {}
+            Numeric::OpGreaterThanOrEqual => {}
+            Numeric::OpMin => {}
+            Numeric::OpMax => {}
+            Numeric::OpWithin => {}
         }
         Ok(())
     }
 
-    fn exec_crypto_op(&mut self, op: CryptoOp) -> Result<(), ScriptError> {
+    fn exec_crypto_ops(&mut self, op: Crypto) -> Result<(), ScriptError> {
         match op {
-            CryptoOp::Ripemd160 => {}
-            CryptoOp::Sha1 => {}
-            CryptoOp::Sha256 => {}
-            CryptoOp::Hash160 => {}
-            CryptoOp::Hash256 => {}
-            CryptoOp::CodeSeparator => {}
-            CryptoOp::CheckSig => {}
-            CryptoOp::CheckSigVerify => {}
-            CryptoOp::CheckMultiSig => {}
-            CryptoOp::CheckMultiSigVerify => {}
+            Crypto::OpRipemd160 => {}
+            Crypto::OpSha1 => {}
+            Crypto::OpSha256 => {}
+            Crypto::OpHash160 => {}
+            Crypto::OpHash256 => {}
+            Crypto::OpCodeSeparator => {}
+            Crypto::OpCheckSig => {}
+            Crypto::OpCheckSigVerify => {}
+            Crypto::OpCheckMultiSig => {}
+            Crypto::OpCheckMultiSigVerify => {}
         }
         Ok(())
     }
 
-    fn exec_expansion_op(&mut self, op: ExpansionOp) -> Result<(), ScriptError> {
+    fn exec_expansion_ops(&mut self, op: Expansion) -> Result<(), ScriptError> {
         match op {
-            ExpansionOp::Nop1 => {}
-            ExpansionOp::Nop2 => {}
-            ExpansionOp::Nop3 => {}
-            ExpansionOp::Nop4 => {}
-            ExpansionOp::Nop5 => {}
-            ExpansionOp::Nop6 => {}
-            ExpansionOp::Nop7 => {}
-            ExpansionOp::Nop8 => {}
-            ExpansionOp::Nop9 => {}
-            ExpansionOp::Nop10 => {}
-            ExpansionOp::CheckSigAdd => {}
+            Expansion::OpNop1 => {}
+            Expansion::OpNop2 => {}
+            Expansion::OpNop3 => {}
+            Expansion::OpNop4 => {}
+            Expansion::OpNop5 => {}
+            Expansion::OpNop6 => {}
+            Expansion::OpNop7 => {}
+            Expansion::OpNop8 => {}
+            Expansion::OpNop9 => {}
+            Expansion::OpNop10 => {}
+            Expansion::OpCheckSigAdd => {}
         }
         Ok(())
     }
@@ -473,7 +472,7 @@ impl Interpreter {
         !self.vf_exec.iter().any(|&v| !v)
     }
 
-    /// OP_PICK / OP_ROLL 都先从栈顶弹出一个 ScriptNum，作为目标元素的深度 n。
+    /// OP_PICK / OP_ROLL 都先从栈顶弹出一个 ScriptNumType，作为目标元素的深度 n。
     ///
     /// n = 0 表示当前栈顶；n = 1 表示栈顶下面一个元素。
     ///
@@ -492,14 +491,14 @@ impl Interpreter {
     }
 }
 
-fn is_conditional_control_op(op: ControlOp) -> bool {
+fn is_conditional_control_op(op: Control) -> bool {
     matches!(op,
-        ControlOp::If
-        | ControlOp::NotIf
-        | ControlOp::Else
-        | ControlOp::VerIf
-        | ControlOp::VerNotIf
-        | ControlOp::EndIf
+        Control::OpIf
+        | Control::OpNotIf
+        | Control::OpElse
+        | Control::OpVerIf
+        | Control::OpVerNotIf
+        | Control::OpEndIf
     )
 }
 
@@ -515,7 +514,7 @@ fn is_conditional_control_op(op: ControlOp) -> bool {
 ///
 /// 实际例子：
 ///
-/// | i64 | ScriptNum |
+/// | i64 | ScriptNumType |
 /// | --- | --- |
 /// | `0` | `[]` |
 /// | `1` | `[0x01]` |
@@ -524,7 +523,7 @@ fn is_conditional_control_op(op: ControlOp) -> bool {
 /// | `128` | `[0x80, 0x00]` |
 /// | `-128` | `[0x80, 0x80]` |
 /// | `256` | `[0x00, 0x01]` |
-fn cast_i64_to_script_num(value: i64) -> ScriptNum {
+fn cast_i64_to_script_num(value: i64) -> ScriptNumType {
     if value == 0 {
         return Vec::new();
     }
@@ -562,7 +561,7 @@ fn cast_i64_to_script_num(value: i64) -> ScriptNum {
 ///
 /// 实际例子：
 ///
-/// | ScriptNum | i64 |
+/// | ScriptNumType | i64 |
 /// | --- | --- |
 /// | `[]` | `0` |
 /// | `[0x01]` | `1` |
@@ -611,7 +610,7 @@ fn cast_script_num_to_i64(v: &[u8]) -> Result<i64, ScriptError> {
 ///
 /// 实际例子：
 ///
-/// | ScriptNum | bool |
+/// | ScriptNumType | bool |
 /// | --- | --- |
 /// | `[]` | `false` |
 /// | `[0x00]` | `false` |
@@ -631,7 +630,7 @@ fn cast_script_num_to_bool(v: &[u8]) -> bool {
     false
 }
 
-fn cast_bool_to_script_num(value: bool) -> ScriptNum {
+fn cast_bool_to_script_num(value: bool) -> ScriptNumType {
     if value {
         vec![0x01]
     } else {

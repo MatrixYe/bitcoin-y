@@ -1,4 +1,4 @@
-use crate::script::opcode::{OpCode, PushOp};
+use crate::script::opcode::{OpCode, PushValue};
 use crate::script::ScriptError;
 
 use std::fmt;
@@ -111,7 +111,7 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
 
             // PushData1
             // PushData1 后面 1 字节表示数据长度
-            b if b == PushOp::PushData1.byte() => {
+            b if b == PushValue::PushData1.byte() => {
                 let delta = read_byte(script, &mut pc)?;
                 let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
                 instructions.push(ScriptToken::Data(ScriptData::Bytes {
@@ -121,7 +121,7 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
             }
             // PushData2
             // PushData2 后面 2 字节小端整数表示数据长度
-            b if b == PushOp::PushData2.byte() => {
+            b if b == PushValue::PushData2.byte() => {
                 let delta_bytes = read_bytes(script, &mut pc, 2)?;
                 let delta = u16::from_le_bytes([delta_bytes[0], delta_bytes[1]]);
                 let bytes = read_bytes(script, &mut pc, to_usize(delta)?)?;
@@ -132,7 +132,7 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
             }
             // PushData4
             // PushData4 后面 4 字节小端整数表示数据长度
-            b if b == PushOp::PushData4.byte() => {
+            b if b == PushValue::PushData4.byte() => {
                 let delta_bytes = read_bytes(script, &mut pc, 4)?;
                 let delta = u32::from_le_bytes([
                     delta_bytes[0],
@@ -148,14 +148,14 @@ pub fn decode(script: &[u8]) -> Result<Vec<ScriptToken>, ScriptError> {
             }
 
             // SmallInt
-            b if b == PushOp::Op1Negate.byte() => {
+            b if b == PushValue::Op1Negate.byte() => {
                 instructions.push(ScriptToken::Data(ScriptData::SmallInt(-1)));
             }
-            b if b == PushOp::Op0.byte() => {
+            b if b == PushValue::Op0.byte() => {
                 instructions.push(ScriptToken::Data(ScriptData::SmallInt(0)));
             }
-            b if (PushOp::Op1.byte()..=PushOp::Op16.byte()).contains(&b) => {
-                let value = i32::from(b - (PushOp::Op1.byte() - 1));
+            b if (PushValue::Op1.byte()..=PushValue::Op16.byte()).contains(&b) => {
+                let value = i32::from(b - (PushValue::Op1.byte() - 1));
                 instructions.push(ScriptToken::Data(ScriptData::SmallInt(value)));
             }
             // Command
@@ -226,7 +226,7 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                                 actual: len,
                             });
                         }
-                        script.push(PushOp::PushData1.byte());
+                        script.push(PushValue::PushData1.byte());
                         script.push(len as u8);
                         script.extend_from_slice(bytes);
                     }
@@ -247,7 +247,7 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                                 actual: len,
                             });
                         }
-                        script.push(PushOp::PushData2.byte());
+                        script.push(PushValue::PushData2.byte());
                         let n: [u8; 2] = (len as u16).to_le_bytes();
                         script.extend_from_slice(&n);
                         script.extend_from_slice(bytes);
@@ -268,7 +268,7 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                                 actual: len,
                             });
                         }
-                        script.push(PushOp::PushData4.byte());
+                        script.push(PushValue::PushData4.byte());
                         let n: [u8; 4] = (len as u32).to_le_bytes();
                         script.extend_from_slice(&n);
                         script.extend_from_slice(bytes);
@@ -277,58 +277,58 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                     ScriptData::SmallInt(n) => {
                         match n {
                             -1 => {
-                                script.push(PushOp::Op1Negate.byte());
+                                script.push(PushValue::Op1Negate.byte());
                             }
                             0 => {
-                                script.push(PushOp::Op0.byte());
+                                script.push(PushValue::Op0.byte());
                             }
                             1 => {
-                                script.push(PushOp::Op1.byte());
+                                script.push(PushValue::Op1.byte());
                             }
                             2 => {
-                                script.push(PushOp::Op2.byte());
+                                script.push(PushValue::Op2.byte());
                             }
                             3 => {
-                                script.push(PushOp::Op3.byte());
+                                script.push(PushValue::Op3.byte());
                             }
                             4 => {
-                                script.push(PushOp::Op4.byte());
+                                script.push(PushValue::Op4.byte());
                             }
                             5 => {
-                                script.push(PushOp::Op5.byte());
+                                script.push(PushValue::Op5.byte());
                             }
                             6 => {
-                                script.push(PushOp::Op6.byte());
+                                script.push(PushValue::Op6.byte());
                             }
                             7 => {
-                                script.push(PushOp::Op7.byte());
+                                script.push(PushValue::Op7.byte());
                             }
                             8 => {
-                                script.push(PushOp::Op8.byte());
+                                script.push(PushValue::Op8.byte());
                             }
                             9 => {
-                                script.push(PushOp::Op9.byte());
+                                script.push(PushValue::Op9.byte());
                             }
                             10 => {
-                                script.push(PushOp::Op10.byte());
+                                script.push(PushValue::Op10.byte());
                             }
                             11 => {
-                                script.push(PushOp::Op11.byte());
+                                script.push(PushValue::Op11.byte());
                             }
                             12 => {
-                                script.push(PushOp::Op12.byte());
+                                script.push(PushValue::Op12.byte());
                             }
                             13 => {
-                                script.push(PushOp::Op13.byte());
+                                script.push(PushValue::Op13.byte());
                             }
                             14 => {
-                                script.push(PushOp::Op14.byte());
+                                script.push(PushValue::Op14.byte());
                             }
                             15 => {
-                                script.push(PushOp::Op15.byte());
+                                script.push(PushValue::Op15.byte());
                             }
                             16 => {
-                                script.push(PushOp::Op16.byte());
+                                script.push(PushValue::Op16.byte());
                             }
                             _ => { return Err(ScriptError::InvalidSmallInt { n: *n }) }
                         }

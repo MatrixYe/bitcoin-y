@@ -27,9 +27,10 @@ use std::fmt;
 
 
 
+
 /// ## 操作码表,取自比特币维基百科
 ///
-/// ### PushOp
+/// ### PushValue
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -60,7 +61,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### ControlOp
+/// ### Control
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -77,11 +78,11 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### StackOp
+/// ### Stack
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
-/// | `ToAltStack` | `0x6b` | `OP_TOALTSTACK` | 将主栈栈顶移动到备用栈 |
+/// | `OpToAltStack` | `0x6b` | `OP_TOALTSTACK` | 将主栈栈顶移动到备用栈 |
 /// | `FromAltStack` | `0x6c` | `OP_FROMALTSTACK` | 将备用栈栈顶移动到主栈 |
 /// | `Op2Drop` | `0x6d` | `OP_2DROP` | 丢弃主栈顶两个元素 |
 /// | `Op2Dup` | `0x6e` | `OP_2DUP` | 复制主栈顶两个元素 |
@@ -103,7 +104,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### SpliceOp
+/// ### Splice
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -115,7 +116,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### BitLogicOp
+/// ### BitLogic
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -130,7 +131,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### NumericOp
+/// ### Numeric
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -164,7 +165,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### CryptoOp
+/// ### Crypto
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -181,7 +182,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### ExpansionOp
+/// ### Expansion
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -201,7 +202,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// ### InvalidOp
+/// ### Invalid
 ///
 /// | 操作码 | 字节码 | 原版名称 | 功能 |
 /// | --- | --- | --- | --- |
@@ -250,7 +251,7 @@ macro_rules! opcode_group {
 }
 
 opcode_group! {
-    pub enum PushOp {
+    pub enum PushValue {
         Op0 => (0x00, "OP_0"),
         PushData1 => (0x4c, "OP_PUSHDATA1"),
         PushData2 => (0x4d, "OP_PUSHDATA2"),
@@ -278,159 +279,159 @@ opcode_group! {
 
 // 别名,解决rust语法中，不同操作码对应相同字节码的问题
 #[allow(non_upper_case_globals)]
-impl PushOp {
+impl PushValue {
     pub const OpFalse: Self = Self::Op0;
     pub const OpTrue: Self = Self::Op1;
 }
 
 opcode_group! {
-    pub enum ControlOp {
-        Nop => (0x61, "OP_NOP"),
-        Ver => (0x62, "OP_VER"),
-        If => (0x63, "OP_IF"),
-        NotIf => (0x64, "OP_NOTIF"),
-        VerIf => (0x65, "OP_VERIF"),
-        VerNotIf => (0x66, "OP_VERNOTIF"),
-        Else => (0x67, "OP_ELSE"),
-        EndIf => (0x68, "OP_ENDIF"),
-        Verify => (0x69, "OP_VERIFY"),
-        Return => (0x6a, "OP_RETURN"),
+    pub enum Control {
+        OpNop => (0x61, "OP_NOP"),
+        OpVer => (0x62, "OP_VER"),
+        OpIf => (0x63, "OP_IF"),
+        OpNotIf => (0x64, "OP_NOTIF"),
+        OpVerIf => (0x65, "OP_VERIF"),
+        OpVerNotIf => (0x66, "OP_VERNOTIF"),
+        OpElse => (0x67, "OP_ELSE"),
+        OpEndIf => (0x68, "OP_ENDIF"),
+        OpVerify => (0x69, "OP_VERIFY"),
+        OpReturn => (0x6a, "OP_RETURN"),
     }
 }
 
 opcode_group! {
-    pub enum StackOp {
-        ToAltStack => (0x6b, "OP_TOALTSTACK"),
-        FromAltStack => (0x6c, "OP_FROMALTSTACK"),
+    pub enum Stack {
+        OpToAltStack => (0x6b, "OP_TOALTSTACK"),
+        OpFromAltStack => (0x6c, "OP_FROMALTSTACK"),
         Op2Drop => (0x6d, "OP_2DROP"),
         Op2Dup => (0x6e, "OP_2DUP"),
         Op3Dup => (0x6f, "OP_3DUP"),
         Op2Over => (0x70, "OP_2OVER"),
         Op2Rot => (0x71, "OP_2ROT"),
         Op2Swap => (0x72, "OP_2SWAP"),
-        IfDup => (0x73, "OP_IFDUP"),
-        Depth => (0x74, "OP_DEPTH"),
-        Drop => (0x75, "OP_DROP"),
-        Dup => (0x76, "OP_DUP"),
-        Nip => (0x77, "OP_NIP"),
-        Over => (0x78, "OP_OVER"),
-        Pick => (0x79, "OP_PICK"),
-        Roll => (0x7a, "OP_ROLL"),
-        Rot => (0x7b, "OP_ROT"),
-        Swap => (0x7c, "OP_SWAP"),
-        Tuck => (0x7d, "OP_TUCK"),
+        OpIfDup => (0x73, "OP_IFDUP"),
+        OpDepth => (0x74, "OP_DEPTH"),
+        OpDrop => (0x75, "OP_DROP"),
+        OpDup => (0x76, "OP_DUP"),
+        OpNip => (0x77, "OP_NIP"),
+        OpOver => (0x78, "OP_OVER"),
+        OpPick => (0x79, "OP_PICK"),
+        OpRoll => (0x7a, "OP_ROLL"),
+        OpRot => (0x7b, "OP_ROT"),
+        OpSwap => (0x7c, "OP_SWAP"),
+        OpTuck => (0x7d, "OP_TUCK"),
     }
 }
 
 opcode_group! {
-    pub enum SpliceOp {
-        Cat => (0x7e, "OP_CAT"),
-        SubStr => (0x7f, "OP_SUBSTR"),
-        Left => (0x80, "OP_LEFT"),
-        Right => (0x81, "OP_RIGHT"),
-        Size => (0x82, "OP_SIZE"),
+    pub enum Splice {
+        OpCat => (0x7e, "OP_CAT"),
+        OpSubStr => (0x7f, "OP_SUBSTR"),
+        OpLeft => (0x80, "OP_LEFT"),
+        OpRight => (0x81, "OP_RIGHT"),
+        OpSize => (0x82, "OP_SIZE"),
     }
 }
 
 opcode_group! {
-    pub enum BitLogicOp {
-        Invert => (0x83, "OP_INVERT"),
-        And => (0x84, "OP_AND"),
-        Or => (0x85, "OP_OR"),
-        Xor => (0x86, "OP_XOR"),
-        Equal => (0x87, "OP_EQUAL"),
-        EqualVerify => (0x88, "OP_EQUALVERIFY"),
-        Reserved1 => (0x89, "OP_RESERVED1"),
-        Reserved2 => (0x8a, "OP_RESERVED2"),
+    pub enum BitLogic {
+        OpInvert => (0x83, "OP_INVERT"),
+        OpAnd => (0x84, "OP_AND"),
+        OpOr => (0x85, "OP_OR"),
+        OpXor => (0x86, "OP_XOR"),
+        OpEqual => (0x87, "OP_EQUAL"),
+        OpEqualVerify => (0x88, "OP_EQUALVERIFY"),
+        OpReserved1 => (0x89, "OP_RESERVED1"),
+        OpReserved2 => (0x8a, "OP_RESERVED2"),
     }
 }
 
 opcode_group! {
-    pub enum NumericOp {
+    pub enum Numeric {
         Op1Add => (0x8b, "OP_1ADD"),
         Op1Sub => (0x8c, "OP_1SUB"),
         Op2Mul => (0x8d, "OP_2MUL"),
         Op2Div => (0x8e, "OP_2DIV"),
-        Negate => (0x8f, "OP_NEGATE"),
-        Abs => (0x90, "OP_ABS"),
-        Not => (0x91, "OP_NOT"),
-        Op0NotEqual => (0x92, "OP_0NOTEQUAL"),
-        Add => (0x93, "OP_ADD"),
-        Sub => (0x94, "OP_SUB"),
-        Mul => (0x95, "OP_MUL"),
-        Div => (0x96, "OP_DIV"),
-        Mod => (0x97, "OP_MOD"),
-        LShift => (0x98, "OP_LSHIFT"),
-        RShift => (0x99, "OP_RSHIFT"),
-        BoolAnd => (0x9a, "OP_BOOLAND"),
-        BoolOr => (0x9b, "OP_BOOLOR"),
-        NumEqual => (0x9c, "OP_NUMEQUAL"),
-        NumEqualVerify => (0x9d, "OP_NUMEQUALVERIFY"),
-        NumNotEqual => (0x9e, "OP_NUMNOTEQUAL"),
-        LessThan => (0x9f, "OP_LESSTHAN"),
-        GreaterThan => (0xa0, "OP_GREATERTHAN"),
-        LessThanOrEqual => (0xa1, "OP_LESSTHANOREQUAL"),
-        GreaterThanOrEqual => (0xa2, "OP_GREATERTHANOREQUAL"),
-        Min => (0xa3, "OP_MIN"),
-        Max => (0xa4, "OP_MAX"),
-        Within => (0xa5, "OP_WITHIN"),
+        OpNegate => (0x8f, "OP_NEGATE"),
+        OpAbs => (0x90, "OP_ABS"),
+        OpNot => (0x91, "OP_NOT"),
+        OpOp0NotEqual => (0x92, "OP_0NOTEQUAL"),
+        OpAdd => (0x93, "OP_ADD"),
+        OpSub => (0x94, "OP_SUB"),
+        OpMul => (0x95, "OP_MUL"),
+        OpDiv => (0x96, "OP_DIV"),
+        OpMod => (0x97, "OP_MOD"),
+        OpLShift => (0x98, "OP_LSHIFT"),
+        OpRShift => (0x99, "OP_RSHIFT"),
+        OpBoolAnd => (0x9a, "OP_BOOLAND"),
+        OpBoolOr => (0x9b, "OP_BOOLOR"),
+        OpNumEqual => (0x9c, "OP_NUMEQUAL"),
+        OpNumEqualVerify => (0x9d, "OP_NUMEQUALVERIFY"),
+        OpNumNotEqual => (0x9e, "OP_NUMNOTEQUAL"),
+        OpLessThan => (0x9f, "OP_LESSTHAN"),
+        OpGreaterThan => (0xa0, "OP_GREATERTHAN"),
+        OpLessThanOrEqual => (0xa1, "OP_LESSTHANOREQUAL"),
+        OpGreaterThanOrEqual => (0xa2, "OP_GREATERTHANOREQUAL"),
+        OpMin => (0xa3, "OP_MIN"),
+        OpMax => (0xa4, "OP_MAX"),
+        OpWithin => (0xa5, "OP_WITHIN"),
     }
 }
 
 opcode_group! {
-    pub enum CryptoOp {
-        Ripemd160 => (0xa6, "OP_RIPEMD160"),
-        Sha1 => (0xa7, "OP_SHA1"),
-        Sha256 => (0xa8, "OP_SHA256"),
-        Hash160 => (0xa9, "OP_HASH160"),
-        Hash256 => (0xaa, "OP_HASH256"),
-        CodeSeparator => (0xab, "OP_CODESEPARATOR"),
-        CheckSig => (0xac, "OP_CHECKSIG"),
-        CheckSigVerify => (0xad, "OP_CHECKSIGVERIFY"),
-        CheckMultiSig => (0xae, "OP_CHECKMULTISIG"),
-        CheckMultiSigVerify => (0xaf, "OP_CHECKMULTISIGVERIFY"),
+    pub enum Crypto {
+        OpRipemd160 => (0xa6, "OP_RIPEMD160"),
+        OpSha1 => (0xa7, "OP_SHA1"),
+        OpSha256 => (0xa8, "OP_SHA256"),
+        OpHash160 => (0xa9, "OP_HASH160"),
+        OpHash256 => (0xaa, "OP_HASH256"),
+        OpCodeSeparator => (0xab, "OP_CODESEPARATOR"),
+        OpCheckSig => (0xac, "OP_CHECKSIG"),
+        OpCheckSigVerify => (0xad, "OP_CHECKSIGVERIFY"),
+        OpCheckMultiSig => (0xae, "OP_CHECKMULTISIG"),
+        OpCheckMultiSigVerify => (0xaf, "OP_CHECKMULTISIGVERIFY"),
     }
 }
 
 opcode_group! {
-    pub enum ExpansionOp {
-        Nop1 => (0xb0, "OP_NOP1"),
-        Nop2 => (0xb1, "OP_NOP2"),
-        Nop3 => (0xb2, "OP_NOP3"),
-        Nop4 => (0xb3, "OP_NOP4"),
-        Nop5 => (0xb4, "OP_NOP5"),
-        Nop6 => (0xb5, "OP_NOP6"),
-        Nop7 => (0xb6, "OP_NOP7"),
-        Nop8 => (0xb7, "OP_NOP8"),
-        Nop9 => (0xb8, "OP_NOP9"),
-        Nop10 => (0xb9, "OP_NOP10"),
-        CheckSigAdd => (0xba, "OP_CHECKSIGADD"),
+    pub enum Expansion {
+        OpNop1 => (0xb0, "OP_NOP1"),
+        OpNop2 => (0xb1, "OP_NOP2"),
+        OpNop3 => (0xb2, "OP_NOP3"),
+        OpNop4 => (0xb3, "OP_NOP4"),
+        OpNop5 => (0xb4, "OP_NOP5"),
+        OpNop6 => (0xb5, "OP_NOP6"),
+        OpNop7 => (0xb6, "OP_NOP7"),
+        OpNop8 => (0xb7, "OP_NOP8"),
+        OpNop9 => (0xb8, "OP_NOP9"),
+        OpNop10 => (0xb9, "OP_NOP10"),
+        OpCheckSigAdd => (0xba, "OP_CHECKSIGADD"),
     }
 }
 
 #[allow(non_upper_case_globals)]
-impl ExpansionOp {
-    pub const CheckLockTimeVerify: Self = Self::Nop2;
-    pub const CheckSequenceVerify: Self = Self::Nop3;
+impl Expansion {
+    pub const OpCheckLockTimeVerify: Self = Self::OpNop2;
+    pub const OpCheckSequenceVerify: Self = Self::OpNop3;
 }
 
 opcode_group! {
-    pub enum InvalidOp {
-        InvalidOpcode => (0xff, "OP_INVALIDOPCODE"),
+    pub enum Invalid {
+        OpInvalidOpcode => (0xff, "OP_INVALIDOPCODE"),
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
-    Push(PushOp),
-    Control(ControlOp),
-    Stack(StackOp),
-    Splice(SpliceOp),
-    BitLogic(BitLogicOp),
-    Numeric(NumericOp),
-    Crypto(CryptoOp),
-    Expansion(ExpansionOp),
-    Invalid(InvalidOp),
+    Push(PushValue),
+    Control(Control),
+    Stack(Stack),
+    Splice(Splice),
+    BitLogic(BitLogic),
+    Numeric(Numeric),
+    Crypto(Crypto),
+    Expansion(Expansion),
+    Invalid(Invalid),
 }
 
 impl OpCode {
@@ -449,31 +450,31 @@ impl OpCode {
     }
 
     pub const fn from_byte(byte: u8) -> Option<Self> {
-        if let Some(op) = PushOp::from_byte(byte) {
+        if let Some(op) = PushValue::from_byte(byte) {
             return Some(Self::Push(op));
         }
-        if let Some(op) = ControlOp::from_byte(byte) {
+        if let Some(op) = Control::from_byte(byte) {
             return Some(Self::Control(op));
         }
-        if let Some(op) = StackOp::from_byte(byte) {
+        if let Some(op) = Stack::from_byte(byte) {
             return Some(Self::Stack(op));
         }
-        if let Some(op) = SpliceOp::from_byte(byte) {
+        if let Some(op) = Splice::from_byte(byte) {
             return Some(Self::Splice(op));
         }
-        if let Some(op) = BitLogicOp::from_byte(byte) {
+        if let Some(op) = BitLogic::from_byte(byte) {
             return Some(Self::BitLogic(op));
         }
-        if let Some(op) = NumericOp::from_byte(byte) {
+        if let Some(op) = Numeric::from_byte(byte) {
             return Some(Self::Numeric(op));
         }
-        if let Some(op) = CryptoOp::from_byte(byte) {
+        if let Some(op) = Crypto::from_byte(byte) {
             return Some(Self::Crypto(op));
         }
-        if let Some(op) = ExpansionOp::from_byte(byte) {
+        if let Some(op) = Expansion::from_byte(byte) {
             return Some(Self::Expansion(op));
         }
-        if let Some(op) = InvalidOp::from_byte(byte) {
+        if let Some(op) = Invalid::from_byte(byte) {
             return Some(Self::Invalid(op));
         }
         None

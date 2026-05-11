@@ -1,4 +1,4 @@
-use bitcoin_y::script::opcode::{BitLogicOp, CryptoOp, OpCode, PushOp, StackOp};
+use bitcoin_y::script::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
 use bitcoin_y::script::parser::{decode, encode, PushBytesKind, ScriptData, ScriptToken};
 use bitcoin_y::script::ScriptError;
 
@@ -18,30 +18,30 @@ fn decode_empty_script_returns_empty_instruction_list() {
 #[test]
 fn decode_standard_p2pkh_script_pubkey() {
     let pubkey_hash = [0x11; 20];
-    let mut script = vec![StackOp::Dup.byte(), CryptoOp::Hash160.byte(), 20];
+    let mut script = vec![Stack::OpDup.byte(), Crypto::OpHash160.byte(), 20];
     script.extend_from_slice(&pubkey_hash);
-    script.extend_from_slice(&[BitLogicOp::EqualVerify.byte(), CryptoOp::CheckSig.byte()]);
+    script.extend_from_slice(&[BitLogic::OpEqualVerify.byte(), Crypto::OpCheckSig.byte()]);
 
     let instructions = decode(&script).expect("P2PKH script should decode");
 
     assert_eq!(
         instructions,
         vec![
-            ScriptToken::Command(OpCode::Stack(StackOp::Dup)),
-            ScriptToken::Command(OpCode::Crypto(CryptoOp::Hash160)),
+            ScriptToken::Command(OpCode::Stack(Stack::OpDup)),
+            ScriptToken::Command(OpCode::Crypto(Crypto::OpHash160)),
             ScriptToken::Data(ScriptData::Bytes {
                 kind: PushBytesKind::Direct(20),
                 bytes: pubkey_hash.to_vec(),
             }),
-            ScriptToken::Command(OpCode::BitLogic(BitLogicOp::EqualVerify)),
-            ScriptToken::Command(OpCode::Crypto(CryptoOp::CheckSig)),
+            ScriptToken::Command(OpCode::BitLogic(BitLogic::OpEqualVerify)),
+            ScriptToken::Command(OpCode::Crypto(Crypto::OpCheckSig)),
         ]
     );
 }
 
 #[test]
 fn decode_op0_as_small_int_data() {
-    let instructions = decode(&[PushOp::Op0.byte()]).expect("OP_0 should decode");
+    let instructions = decode(&[PushValue::Op0.byte()]).expect("OP_0 should decode");
 
     assert_eq!(
         instructions,
@@ -67,16 +67,16 @@ fn decode_direct_push_reads_length_from_opcode_byte() {
 #[test]
 fn decode_pushdata_variants_read_little_endian_lengths() {
     let script = [
-        PushOp::PushData1.byte(),
+        PushValue::PushData1.byte(),
         2,
         0x01,
         0x02,
-        PushOp::PushData2.byte(),
+        PushValue::PushData2.byte(),
         2,
         0,
         0x03,
         0x04,
-        PushOp::PushData4.byte(),
+        PushValue::PushData4.byte(),
         2,
         0,
         0,
@@ -115,7 +115,7 @@ fn decode_returns_error_when_push_payload_is_truncated() {
 
 #[test]
 fn decode_returns_error_when_pushdata_length_field_is_truncated() {
-    let err = decode(&[PushOp::PushData2.byte(), 1]).expect_err("PUSHDATA2 needs two length bytes");
+    let err = decode(&[PushValue::PushData2.byte(), 1]).expect_err("PUSHDATA2 needs two length bytes");
 
     assert_eq!(err, ScriptError::UnexpectedEndOfScript);
 }
@@ -142,14 +142,14 @@ fn encode_preserves_selected_push_encoding() {
     assert_eq!(
         script,
         vec![
-            PushOp::PushData1.byte(),
+            PushValue::PushData1.byte(),
             1,
             0xaa,
-            PushOp::PushData2.byte(),
+            PushValue::PushData2.byte(),
             1,
             0,
             0xbb,
-            PushOp::PushData4.byte(),
+            PushValue::PushData4.byte(),
             1,
             0,
             0,
@@ -162,14 +162,14 @@ fn encode_preserves_selected_push_encoding() {
 #[test]
 fn encode_decode_roundtrip_preserves_original_script_bytes() {
     assert_roundtrip(&[
-        PushOp::Op0.byte(),
+        PushValue::Op0.byte(),
         2,
         0xaa,
         0xbb,
-        PushOp::PushData1.byte(),
+        PushValue::PushData1.byte(),
         1,
         0xcc,
-        StackOp::Dup.byte(),
+        Stack::OpDup.byte(),
     ]);
 }
 
