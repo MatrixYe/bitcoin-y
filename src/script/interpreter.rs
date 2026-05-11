@@ -368,10 +368,29 @@ impl Interpreter {
         }
         Ok(())
     }
-
+    /// ----BitLogicOp-----
+    ///
+    /// Invert:
+    ///
+    /// And:
+    ///
+    /// Or:
+    ///
+    /// Xor:
+    ///
+    /// Equal:
+    ///
+    /// EqualVerify:
+    ///
+    /// Reserved1:
+    ///
+    /// Reserved2:
+    ///
     fn exec_bit_logic_op(&mut self, op: BitLogicOp) -> Result<(), ScriptError> {
         match op {
-            BitLogicOp::Invert => {}
+            BitLogicOp::Invert => {
+
+            }
             BitLogicOp::And => {}
             BitLogicOp::Or => {}
             BitLogicOp::Xor => {}
@@ -610,4 +629,12 @@ fn cast_script_num_to_bool(v: &[u8]) -> bool {
         return !(index == v.len() - 1 && *byte == 0x80);
     }
     false
+}
+
+fn cast_bool_to_script_num(value: bool) -> ScriptNum {
+    if value {
+        vec![0x01]
+    } else {
+        vec![0x00]
+    }
 }

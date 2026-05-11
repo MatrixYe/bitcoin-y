@@ -12,7 +12,36 @@
 - `nBits` 与目标值转换、PoW 基础校验
 - 密钥、签名与地址生成
 - 脚本系统的初步模块拆分
+## 开发进度
+### 脚本系统
+-[x] 操作码分组
+-[ ] 设计脚本系统流程解析、栈机、验证
 
+#### 操作码代码逻辑实现
+-[x] Direct Data Push
+    -[x] 0x01~0x4b
+-[x] PushOP 组
+    -[x] OpPushData1/2/4
+    -[x] OP0,OP_neg,Op1~OP16
+    -[x] OpReserved
+-[x] 数据 OP0,OP_neg,Op1~Op16
+-[x] `StackOp`组，熟悉栈机运行原理
+    -[x] Drop、Dup、Swap、Over、IfDup
+    -[x] ToAltStack、FromAltStack
+    -[x] Op2Drop、Op2Dup、Op3Dup
+    -[x] Nip、Rot、Tuck
+    -[x] Op2Over、Op2Swap、Op2Rot
+    -[x] Depth、Pick、Roll
+-[ ] `BitLogicOp` 组
+    - [ ]
+    - [ ]
+    - [ ]
+    - [ ]
+    - [ ]
+    - [ ]
+-[ ] `SpliceOp` 组
+-[ ] `NumericOp` 组，有点难，先实现一个 script_num 辅助模块
+-[ ] `ControlOp` 组，暂缓，很难
 ## 参考资料
 
 ### 交易格式

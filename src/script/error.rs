@@ -6,7 +6,7 @@ pub enum ScriptError {
     #[error("invalid opcode: 0x{0:02x}")]
     InvalidOpcode(u8),
 
-    /// 失效的指令
+    /// 被禁用的指令
     #[error("disabled opcode: 0x{0:02x}")]
     DisabledOpcode(u8),
 
