@@ -32,13 +32,13 @@
     -[x] Nip、Rot、Tuck
     -[x] Op2Over、Op2Swap、Op2Rot
     -[x] Depth、Pick、Roll
--[ ] `BitLogicOp` 组
-    - [ ]
-    - [ ]
-    - [ ]
-    - [ ]
-    - [ ]
-    - [ ]
+-[x] `BitLogicOp` 组
+    - [x] OpInvert： 禁用
+    - [x] OpAnd：禁用
+    - [x] OpOr：禁用
+    - [x] OpXor：禁用
+    - [x] OpEqual：弹出栈顶两个元素，比较字节相等，相等压入true，反之压入false
+    - [x] OpEqualVerify：先执行OpEqual 再执行 OpVerify
 -[ ] `SpliceOp` 组
 -[ ] `NumericOp` 组，有点难，先实现一个 script_num 辅助模块
 -[ ] `ControlOp` 组，暂缓，很难

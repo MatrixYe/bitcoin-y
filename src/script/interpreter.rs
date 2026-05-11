@@ -379,9 +379,9 @@ impl Interpreter {
     ///
     /// Xor:
     ///
-    /// Equal:
+    /// Equal: 从主栈弹出两个元素，比较字节是否完全相等。相等压入 [1]，不相等压入 []。
     ///
-    /// EqualVerify:
+    /// EqualVerify: 等价于先执行 OP_EQUAL，再执行 OP_VERIFY。
     ///
     /// Reserved1:
     ///
@@ -389,14 +389,43 @@ impl Interpreter {
     ///
     fn exec_bit_logic_ops(&mut self, op: BitLogic) -> Result<(), ScriptError> {
         match op {
-            BitLogic::OpInvert => {}
-            BitLogic::OpAnd => {}
-            BitLogic::OpOr => {}
-            BitLogic::OpXor => {}
-            BitLogic::OpEqual => {}
-            BitLogic::OpEqualVerify => {}
-            BitLogic::OpReserved1 => {}
-            BitLogic::OpReserved2 => {}
+            // 禁用
+            BitLogic::OpInvert => {
+                return Err(ScriptError::DisabledOpcode(op.byte()));
+            }
+            // 禁用
+            BitLogic::OpAnd => {
+                return Err(ScriptError::DisabledOpcode(op.byte()));
+            }
+            // 禁用
+            BitLogic::OpOr => {
+                return Err(ScriptError::DisabledOpcode(op.byte()));
+            }
+            // 禁用
+            BitLogic::OpXor => {
+                return Err(ScriptError::DisabledOpcode(op.byte()));
+            }
+            BitLogic::OpEqual => {
+                self.require_stack(2)?;
+                let right = self.pop()?;
+                let left = self.pop()?;
+                self.push(cast_bool_to_script_num(left == right))?;
+            }
+            //等价于先执行 OP_EQUAL，再执行 OP_VERIFY。
+            BitLogic::OpEqualVerify => {
+                self.require_stack(2)?;
+                let right = self.pop()?;
+                let left = self.pop()?;
+                if left != right {
+                    return Err(ScriptError::EqualVerifyFailed);
+                }
+            }
+            BitLogic::OpReserved1 => {
+                return Err(ScriptError::ReservedOpcode(op.byte()));
+            }
+            BitLogic::OpReserved2 => {
+                return Err(ScriptError::ReservedOpcode(op.byte()));
+            }
         }
         Ok(())
     }
@@ -500,6 +529,46 @@ fn is_conditional_control_op(op: Control) -> bool {
         | Control::OpVerNotIf
         | Control::OpEndIf
     )
+}
+
+#[allow(dead_code)]
+fn bit_logic_invert(mut value: Vec<u8>) -> Vec<u8> {
+    for byte in &mut value {
+        *byte = !*byte;
+    }
+    value
+}
+
+#[allow(dead_code)]
+fn bit_logic_and(left: Vec<u8>, right: Vec<u8>) -> Vec<u8> {
+    bit_logic_binary_op(left, right, |a, b| a & b)
+}
+
+#[allow(dead_code)]
+fn bit_logic_or(left: Vec<u8>, right: Vec<u8>) -> Vec<u8> {
+    bit_logic_binary_op(left, right, |a, b| a | b)
+}
+
+#[allow(dead_code)]
+fn bit_logic_xor(left: Vec<u8>, right: Vec<u8>) -> Vec<u8> {
+    bit_logic_binary_op(left, right, |a, b| a ^ b)
+}
+
+fn bit_logic_binary_op<F>(mut left: Vec<u8>, mut right: Vec<u8>, op: F) -> Vec<u8>
+where
+    F: Fn(u8, u8) -> u8,
+{
+    make_same_size(&mut left, &mut right);
+    left.iter()
+        .zip(right.iter())
+        .map(|(a, b)| op(*a, *b))
+        .collect()
+}
+
+fn make_same_size(left: &mut Vec<u8>, right: &mut Vec<u8>) {
+    let max_len = left.len().max(right.len());
+    left.resize(max_len, 0);
+    right.resize(max_len, 0);
 }
 
 /// 把 Rust 整数转换成 Bitcoin Script 使用的数字字节。规则：
@@ -634,6 +703,7 @@ fn cast_bool_to_script_num(value: bool) -> ScriptNumType {
     if value {
         vec![0x01]
     } else {
-        vec![0x00]
+        //依据原版 vchFalse(0) 是空向量，不是 [0x00]。
+        Vec::new()
     }
 }
