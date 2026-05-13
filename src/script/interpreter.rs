@@ -3,14 +3,45 @@ use crate::script::opcode::{
     BitLogic, Control, Crypto, Expansion, Numeric, OpCode, PushValue, Splice, Stack,
 };
 use crate::script::parser::ScriptToken;
+use crate::script::rules::{RuleV0_3_19, ScriptRules};
 use crate::script::ScriptError;
+use std::cmp::max;
 
+/// @Name: interpreter.rs
+///
+/// @Date: 2026/5/01 01:46
+///
+/// @Author: Matrix.Ye
+///
+/// @Description: 比特币脚本核心处理引擎
+///
 
 type StackType = Vec<Vec<u8>>; //别名，栈
 type ScriptNumType = Vec<u8>; // 别名，栈内数字
 
-#[derive(Debug, Clone, Default)]
-pub struct Interpreter {
+/// ## 执行器架构
+/// 作为比特币脚本的核心处理引擎，Interpreter的核心是“栈”，作为一种先入后出的数据结构，本项目中用Vec来描述，例如：
+/// `[x0,x1,x2,x3]` 其中`x3`的位置即栈顶。根据中本聪设计的栈机结构，本引擎包含了原版定义的主栈、备用栈、和条件栈，以及规则特征。
+///
+///
+/// ## 数据&指令分离
+/// Interpreter 引擎的输入对象是 ScriptToken，这个本人定义的数据对象，原版中并没有这个说法。
+/// 因为本项目试图用“图灵机”的计算理念重新定义比特币脚本，达到语法上不同，语义上一致的效果。
+/// ScriptToken 包含元数据，Data或者 Command，二者的处理逻辑不同。对于Data直接压入，对于Command遵循原版逻辑。
+/// 如果在Command的处理流程中出现了与Data相关的操作码，那么证明出现了Token的伪造，是攻击行为，Interpreter会避免这种情况发生 UnsupportedScriptForm。
+///
+///
+/// ## 规则约束
+/// 与原版(script.cpp line:101)的对操作码的禁用状态处理不同，执行引擎并不会对opcode禁用规则进行定义。
+/// 即不会采用手动跳过、返回错误、或者注释逻辑代码的方式来实现操作码禁用。
+/// 而是新定义了一个规则范本ScriptRules，由rules模块进行处理，因此在本模块中，并不会出现显式的操作码禁用情况，
+/// 默认就是实现了所有操作码的代码逻辑(保留操作码除外)。
+/// Interpreter 内部有一个规则对象 rules: R，R 必须实现 ScriptRules trait。
+/// 如果调用者不指定 R，默认使用 RuleV0_3_19，规则选择在类型层面明确，运行时不需要 Box<dyn ScriptRules> 这种动态分发
+///
+///
+#[derive(Debug, Clone)]
+pub struct Interpreter<R: ScriptRules = RuleV0_3_19> {
     // 主栈
     pub stack: StackType,
     // 备用栈,提供一个临时存放区只通过 OP_TOALSTACK / OP_FROMALSTACK 显式移动数据。
@@ -22,10 +53,28 @@ pub struct Interpreter {
 
     // 非 push 操作码计数
     op_count: usize,
+
+    // 脚本规则：负责判断某个操作码在当前规则版本下是否被禁用。
+    rules: R,
 }
 
-impl Interpreter {
-    // 构造
+impl<R> Default for Interpreter<R>
+where
+    R: ScriptRules + Default,
+{
+    fn default() -> Self {
+        Self {
+            stack: StackType::new(),
+            alt_stack: StackType::new(),
+            vf_exec: Vec::new(),
+            op_count: 0,
+            rules: R::default(),
+        }
+    }
+}
+
+impl Interpreter<RuleV0_3_19> {
+    // 构造，默认规则
     pub fn new() -> Self {
         Self::default()
     }
@@ -37,6 +86,34 @@ impl Interpreter {
             ..Self::default()
         }
     }
+}
+
+impl<R> Interpreter<R>
+where
+    R: ScriptRules,
+{
+    // 使用指定规则构造解释器，用于模拟不同脚本规则版本。
+    pub fn with_rules(rules: R) -> Self {
+        Self {
+            stack: StackType::new(),
+            alt_stack: StackType::new(),
+            vf_exec: Vec::new(),
+            op_count: 0,
+            rules,
+        }
+    }
+
+    // 使用已有主栈和指定规则构造解释器。
+    pub fn with_stack_and_rules(stack: StackType, rules: R) -> Self {
+        Self {
+            stack,
+            alt_stack: StackType::new(),
+            vf_exec: Vec::new(),
+            op_count: 0,
+            rules,
+        }
+    }
+
     // 入栈
     fn push(&mut self, value: Vec<u8>) -> Result<(), ScriptError> {
         let le = value.len();
@@ -54,7 +131,6 @@ impl Interpreter {
     fn pop(&mut self) -> Result<Vec<u8>, ScriptError> {
         self.stack.pop().ok_or(ScriptError::StackUnderflow)
     }
-
     // 弹出备用栈出栈
     fn pop_alt(&mut self) -> Result<Vec<u8>, ScriptError> {
         self.alt_stack.pop().ok_or(ScriptError::StackUnderflow)
@@ -65,6 +141,7 @@ impl Interpreter {
         self.stack.len()
     }
 
+    // 检测栈长度是否符合预期
     fn require_stack(&self, len: usize) -> Result<(), ScriptError> {
         if self.stack_len() < len {
             return Err(ScriptError::StackUnderflow);
@@ -104,8 +181,12 @@ impl Interpreter {
                 }
                 // 操作码入栈
                 ScriptToken::Command(opcode) => {
-                    self.count_op(*opcode)?;
-                    self.execute_opcode(*opcode)?;
+                    /*一个非 push opcode 即使随后因为禁用失败，也先被计入 opcode 数量
+                    计数限制约束的是脚本结构和执行资源，不是“成功执行过的 opcode 数量
+                    */
+                    self.count_op(*opcode)?; //计数
+                    self.rules.check_disable(*opcode)?; //检查禁用
+                    self.execute_opcode(*opcode)?; //执行
                 }
             }
             self.check_stack_size()?;
@@ -371,15 +452,15 @@ impl Interpreter {
     }
     /// ----BitLogic-----
     ///
-    /// Invert:
+    /// Invert: 弹出 1 个栈元素，对其中每个字节做按位取反。
     ///
-    /// And:
+    /// And: 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位与。
     ///
-    /// Or:
+    /// Or: 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位或。
     ///
-    /// Xor:
+    /// Xor: 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位异或。
     ///
-    /// Equal: 从主栈弹出两个元素，比较字节是否完全相等。相等压入 [1]，不相等压入 []。
+    /// Equal: 从主栈弹出两个元素，比较字节是否完全相等。相等压入 `[1]`，不相等压入 `[]`。
     ///
     /// EqualVerify: 等价于先执行 OP_EQUAL，再执行 OP_VERIFY。
     ///
@@ -389,21 +470,34 @@ impl Interpreter {
     ///
     fn exec_bit_logic_ops(&mut self, op: BitLogic) -> Result<(), ScriptError> {
         match op {
-            // 禁用
+
+            // 逻辑-非
             BitLogic::OpInvert => {
-                return Err(ScriptError::DisabledOpcode(op.byte()));
+                self.require_stack(1)?;
+                let mut value = self.pop()?;
+                for byte in &mut value {
+                    *byte = !*byte;
+                }
+                self.push(value)?;
             }
-            // 禁用
+            // 逻辑-与
             BitLogic::OpAnd => {
-                return Err(ScriptError::DisabledOpcode(op.byte()));
+                self.require_stack(2)?;
+                let right = self.pop()?;
+                let left = self.pop()?;
+                self.push(bit_logic_binary_op(left, right, |a, b| a & b))?;
             }
-            // 禁用
             BitLogic::OpOr => {
-                return Err(ScriptError::DisabledOpcode(op.byte()));
+                self.require_stack(2)?;
+                let right = self.pop()?;
+                let left = self.pop()?;
+                self.push(bit_logic_binary_op(left, right, |a, b| a | b))?;
             }
-            // 禁用
             BitLogic::OpXor => {
-                return Err(ScriptError::DisabledOpcode(op.byte()));
+                self.require_stack(2)?;
+                let right = self.pop()?;
+                let left = self.pop()?;
+                self.push(bit_logic_binary_op(left, right, |a, b| a ^ b))?;
             }
             BitLogic::OpEqual => {
                 self.require_stack(2)?;
@@ -531,44 +625,18 @@ fn is_conditional_control_op(op: Control) -> bool {
     )
 }
 
-#[allow(dead_code)]
-fn bit_logic_invert(mut value: Vec<u8>) -> Vec<u8> {
-    for byte in &mut value {
-        *byte = !*byte;
-    }
-    value
-}
 
-#[allow(dead_code)]
-fn bit_logic_and(left: Vec<u8>, right: Vec<u8>) -> Vec<u8> {
-    bit_logic_binary_op(left, right, |a, b| a & b)
-}
-
-#[allow(dead_code)]
-fn bit_logic_or(left: Vec<u8>, right: Vec<u8>) -> Vec<u8> {
-    bit_logic_binary_op(left, right, |a, b| a | b)
-}
-
-#[allow(dead_code)]
-fn bit_logic_xor(left: Vec<u8>, right: Vec<u8>) -> Vec<u8> {
-    bit_logic_binary_op(left, right, |a, b| a ^ b)
-}
-
-fn bit_logic_binary_op<F>(mut left: Vec<u8>, mut right: Vec<u8>, op: F) -> Vec<u8>
+fn bit_logic_binary_op<F>(mut left: Vec<u8>, mut right: Vec<u8>, f: F) -> Vec<u8>
 where
     F: Fn(u8, u8) -> u8,
 {
-    make_same_size(&mut left, &mut right);
-    left.iter()
-        .zip(right.iter())
-        .map(|(a, b)| op(*a, *b))
-        .collect()
-}
-
-fn make_same_size(left: &mut Vec<u8>, right: &mut Vec<u8>) {
-    let max_len = left.len().max(right.len());
-    left.resize(max_len, 0);
-    right.resize(max_len, 0);
+    // 归一化，统一两个操作数的长度。
+    // 操作数采用的是小端序列，低位在前，高位在后，因此较短的一方需要在右侧补0
+    //  [0x03,0x02,0x1] , [0x02,0x01] -> [0x03,0x02,0x1],[0x02,0x01,0x00]
+    let max_len = max(left.len(), right.len());
+    left.resize(max_len, 0u8);
+    right.resize(max_len, 0u8);
+    left.iter().zip(right.iter()).map(|(&l, &r)| f(l, r)).collect()
 }
 
 /// 把 Rust 整数转换成 Bitcoin Script 使用的数字字节。规则：
@@ -673,7 +741,7 @@ fn cast_script_num_to_i64(v: &[u8]) -> Result<i64, ScriptError> {
 ///
 /// false 的情况：空向量、所有字节都是 0、负零。
 ///
-/// 负零的典型形式是 [0x80]，也可能是 [0x00, 0x80] 这类“只有符号位非零”的形式。
+/// 负零的典型形式是 `[0x80]`，也可能是 `[0x00, 0x80]` 这类“只有符号位非零”的形式。
 ///
 /// 因此这里从低位到高位扫描：遇到普通非零字节就是真；如果唯一非零字节是最后一个字节的 0x80，则是假。
 ///
