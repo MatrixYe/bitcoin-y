@@ -1,6 +1,7 @@
 use bitcoin_y::script::interpreter::Interpreter;
 use bitcoin_y::script::opcode::{BitLogic, OpCode};
 use bitcoin_y::script::parser::ScriptToken;
+use bitcoin_y::script::rules::RuleOpen;
 use bitcoin_y::script::ScriptError;
 
 fn bit_logic_op(op: BitLogic) -> ScriptToken {
@@ -72,6 +73,35 @@ fn execute_disabled_bit_logic_ops_return_disabled_opcode() {
         let err = interpreter.execute(&[bit_logic_op(op)]).unwrap_err();
         assert_eq!(err, ScriptError::DisabledOpcode(op.byte()));
     }
+}
+
+// 测试规则层分离：开放规则不禁用这些位逻辑操作码，解释器会执行真实语义。
+#[test]
+fn execute_bit_logic_ops_when_rule_allows_them() {
+    // 与
+    let mut interpreter =
+        Interpreter::with_stack_and_rules(vec![vec![0b1010_0000], vec![0b1100_0000]], RuleOpen);
+    interpreter.execute(&[bit_logic_op(BitLogic::OpAnd)]).unwrap();
+    assert_eq!(interpreter.stack, vec![vec![0b1000_0000]]);
+
+    // 或
+    let mut interpreter =
+        Interpreter::with_stack_and_rules(vec![vec![0b1010_0000], vec![0b1100_0000]], RuleOpen);
+    interpreter.execute(&[bit_logic_op(BitLogic::OpOr)]).unwrap();
+    assert_eq!(interpreter.stack, vec![vec![0b1110_0000]]);
+
+    // 异或
+    let mut interpreter =
+        Interpreter::with_stack_and_rules(vec![vec![0b1010_0000], vec![0b1100_0000]], RuleOpen);
+    interpreter.execute(&[bit_logic_op(BitLogic::OpXor)]).unwrap();
+    assert_eq!(interpreter.stack, vec![vec![0b0110_0000]]);
+
+    // 非
+    let mut interpreter = Interpreter::with_stack_and_rules(vec![vec![0b1010_0000]], RuleOpen);
+    interpreter
+        .execute(&[bit_logic_op(BitLogic::OpInvert)])
+        .unwrap();
+    assert_eq!(interpreter.stack, vec![vec![0b0101_1111]]);
 }
 
 // 测试保留的位逻辑操作码：OP_RESERVED1 / OP_RESERVED2 继续作为保留操作码处理。

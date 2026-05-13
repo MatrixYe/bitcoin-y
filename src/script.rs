@@ -4,6 +4,7 @@ pub mod interpreter;
 pub mod opcode;
 pub mod parser;
 pub mod verify;
+pub mod rules;
 
 /// @Name: script
 ///
