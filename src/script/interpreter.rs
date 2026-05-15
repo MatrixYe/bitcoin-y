@@ -27,7 +27,7 @@ type ScriptNumType = Vec<u8>; // 别名，栈内数字
 /// ## 数据&指令分离
 /// Interpreter 引擎的输入对象是 ScriptToken，这个本人定义的数据对象，原版中并没有这个说法。
 /// 因为本项目试图用“图灵机”的计算理念重新定义比特币脚本，达到语法上不同，语义上一致的效果。
-/// ScriptToken 包含元数据，Data或者 Command，二者的处理逻辑不同。对于Data直接压入，对于Command遵循原版逻辑。
+/// ScriptToken 包含Data或者 Command，二者的处理逻辑不同。对于Data直接压入，对于Command遵循原版逻辑。
 /// 如果在Command的处理流程中出现了与Data相关的操作码，那么证明出现了Token的伪造，是攻击行为，Interpreter会避免这种情况发生 UnsupportedScriptForm。
 ///
 ///
@@ -442,27 +442,116 @@ where
 
     fn exec_splice_ops(&mut self, op: Splice) -> Result<(), ScriptError> {
         match op {
-            Splice::OpCat => {}
-            Splice::OpSubStr => {}
-            Splice::OpLeft => {}
-            Splice::OpRight => {}
-            Splice::OpSize => {}
+            //拼接两个字节串 `[x1, x2] -> [x1 || x2]`
+            Splice::OpCat => {
+                self.require_stack(2)?;
+                let x2 = self.pop()?;
+                let mut x1 = self.pop()?;
+                x1.extend_from_slice(x2.as_slice());
+                self.push(x1)?;
+            }
+            //截取字节串的一段
+            //[in, begin, size] -> [in[begin .. begin + size]]
+            Splice::OpSubStr => {
+                self.require_stack(3)?;
+                let size = self.pop()?;
+                let begin = self.pop()?;
+                let input = self.pop()?;
+
+                let size = cast_script_num_to_i64(size.as_slice())?;
+                let begin = cast_script_num_to_i64(begin.as_slice())?;
+                if begin < 0 {
+                    return Err(ScriptError::InvalidSpliceArgument {
+                        name: "begin",
+                        value: begin,
+                        len: input.len(),
+                    });
+                }
+                if size < 0 {
+                    return Err(ScriptError::InvalidSpliceArgument {
+                        name: "size",
+                        value: size,
+                        len: input.len(),
+                    });
+                }
+
+                let end = begin
+                    .checked_add(size)
+                    .ok_or(ScriptError::InvalidSpliceArgument {
+                        name: "size",
+                        value: size,
+                        len: input.len(),
+                    })?;
+                // 贴合v0.3.19的语义，如果 begin > in.len()，把 begin clamp 到 in.len()
+                let begin = (begin as usize).min(input.len());
+                // 贴合v0.3.19的语义，如果 end > in.len()，把 end clamp 到 in.len()
+                let end = (end as usize).min(input.len());
+                self.push(input[begin..end].to_vec())?;
+            }
+
+            //保留左侧前 size 个字节。
+            //[in, size] -> [in[..size]]
+            Splice::OpLeft => {
+                self.require_stack(2)?;
+                let size = self.pop()?;
+                let input = self.pop()?;
+                let size = cast_script_num_to_i64(size.as_slice())?;
+                if size < 0 {
+                    return Err(ScriptError::InvalidSpliceArgument {
+                        name: "size",
+                        value: size,
+                        len: input.len(),
+                    });
+                }
+
+                let size = (size as usize).min(input.len());
+                self.push(input[..size].to_vec())?;
+            }
+
+            //保留右侧后 size 个字节。
+            //[in, size] -> [in[in.len() - size ..]]
+
+            Splice::OpRight => {
+                self.require_stack(2)?;
+                let size = self.pop()?;
+                let input = self.pop()?;
+                let size = cast_script_num_to_i64(size.as_slice())?;
+                if size < 0 {
+                    return Err(ScriptError::InvalidSpliceArgument {
+                        name: "size",
+                        value: size,
+                        len: input.len(),
+                    });
+                }
+
+                let size = (size as usize).min(input.len());
+                self.push(input[input.len() - size..].to_vec())?;
+            }
+
+            //读取栈顶元素长度，并把长度压栈，但不移除原元素。
+            // [in] -> [in, len(in)]
+            Splice::OpSize => {
+                self.require_stack(1)?;
+                let len = self.stack[self.stack_len() - 1].len();
+                let script_num = cast_i64_to_script_num(len as i64);
+                self.push(script_num)?;
+            }
         }
         Ok(())
     }
     /// ----BitLogic-----
     ///
-    /// Invert: 弹出 1 个栈元素，对其中每个字节做按位取反。
+    /// Invert:非： 弹出 1 个栈元素，对其中每个字节做按位取反。
     ///
-    /// And: 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位与。
+    /// And:与： 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位与。
     ///
-    /// Or: 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位或。
+    /// Or:或： 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位或。
     ///
-    /// Xor: 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位异或。
+    /// Xor: 异或，弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位异或。
     ///
-    /// Equal: 从主栈弹出两个元素，比较字节是否完全相等。相等压入 `[1]`，不相等压入 `[]`。
+    /// Equal: 相等，从主栈弹出两个元素，比较字节是否完全相等。相等压入 `[1]`，不相等压入 `[]`。
     ///
-    /// EqualVerify: 等价于先执行 OP_EQUAL，再执行 OP_VERIFY。
+    /// EqualVerify:相等并验证， 等价于先执行 OP_EQUAL，再执行 OP_VERIFY。
     ///
     /// Reserved1:
     ///
@@ -625,14 +714,18 @@ fn is_conditional_control_op(op: Control) -> bool {
     )
 }
 
-
+/// 对两个栈元素执行逐字节位运算。
+///
+/// 参考 v0.3.19 的 `MakeSameSize`：如果两个字节串长度不同，先把较短的一方
+/// 在尾部补 `0x00` 到相同长度，再逐字节执行 `f`。
+///
+/// 这里处理的是原始字节串，不是先转换成 ScriptNum 后再计算。
+/// 例如 `[0x03, 0x02, 0x01]` 和 `[0x02, 0x01]`
+/// 会先变成 `[0x03, 0x02, 0x01]` 和 `[0x02, 0x01, 0x00]`。
 fn bit_logic_binary_op<F>(mut left: Vec<u8>, mut right: Vec<u8>, f: F) -> Vec<u8>
 where
     F: Fn(u8, u8) -> u8,
 {
-    // 归一化，统一两个操作数的长度。
-    // 操作数采用的是小端序列，低位在前，高位在后，因此较短的一方需要在右侧补0
-    //  [0x03,0x02,0x1] , [0x02,0x01] -> [0x03,0x02,0x1],[0x02,0x01,0x00]
     let max_len = max(left.len(), right.len());
     left.resize(max_len, 0u8);
     right.resize(max_len, 0u8);

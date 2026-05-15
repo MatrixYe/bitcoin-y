@@ -69,6 +69,14 @@ pub enum ScriptError {
     #[error("invalid stack index: index {index}, stack length {len}")]
     InvalidStackIndex { index: i64, len: usize },
 
+    /// 字节串截取参数非法(个人新增的)
+    #[error("invalid splice argument `{name}`: value {value}, input length {len}")]
+    InvalidSpliceArgument {
+        name: &'static str,
+        value: i64,
+        len: usize,
+    },
+
     /// 脚本元素过多
     #[error("script element too large: max {max}, actual {actual}")]
     ElementTooLarge { max: usize, actual: usize },
