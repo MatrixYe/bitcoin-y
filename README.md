@@ -50,6 +50,20 @@
     -[x] OpRight 右截取（语义实现，代码禁用）
     -[x] OpSize 栈顶元素长度压栈
 -[ ] `NumericOp` 组，有点难，先实现一个 script_num 辅助模块
+    -[ ] OP_1ADD / OP_1SUB：栈顶数字加 1 / 减 1
+    -[ ] OP_2MUL / OP_2DIV 栈顶数字乘 2 / 除 2，原版用位移实现；（语义实现，代码禁用）
+    -[ ] OP_NEGATE / OP_ABS：取负 / 取绝对值
+    -[ ] OP_NOT 数字等于 0 输出 true，否则 false
+    -[ ] OP_0NOTEQUAL：数字不等于 0 输出 true，否则 false
+    -[ ] OP_ADD / OP_SUB / OP_MUL / OP_DIV / OP_MOD：二元算术，按 `[left, right] -> left op right`。
+    -[ ] OP_LSHIFT / OP_RSHIFT：按 right 位移 left，原版限制 shift 在 0..=2048。
+    -[ ] OP_BOOLAND / OP_BOOLOR：把两个数字按“是否非零”解释成布尔值。
+    -[ ] OP_NUMEQUAL / OP_NUMNOTEQUAL：数值相等/不相等，不是字节相等
+    -[ ] OP_NUMEQUALVERIFY：数值相等则消耗两个元素且不压栈，不相等返回 VerifyFailed
+    -[ ] OP_LESSTHAN / OP_GREATERTHAN / OP_LESSTHANOREQUAL / OP_GREATERTHANOREQUAL：数值比较。
+    -[ ] OP_MIN / OP_MAX：取较小/较大值。
+    -[ ] OP_WITHIN：判断 min <= value < max。
+    -[ ] 
 -[ ] `ControlOp` 组，暂缓，很难
 
 ## 参考资料

@@ -245,14 +245,23 @@ where
     }
     fn execute_opcode(&mut self, op_code: OpCode) -> Result<(), ScriptError> {
         match op_code {
+            // 完成
             OpCode::Push(op) => self.execute_push_ops(op)?,
+            // todo
             OpCode::Control(op) => self.exec_control_ops(op)?,
+            // 完成
             OpCode::Stack(op) => self.exec_stack_ops(op)?,
+            // 完成
             OpCode::Splice(op) => self.exec_splice_ops(op)?,
+            //完成
             OpCode::BitLogic(op) => self.exec_bit_logic_ops(op)?,
+            // todo
             OpCode::Numeric(op) => self.exec_numeric_ops(op)?,
+            // todo
             OpCode::Crypto(op) => self.exec_crypto_ops(op)?,
+            // todo
             OpCode::Expansion(op) => self.exec_expansion_ops(op)?,
+            // 完成
             OpCode::Invalid(op) => return Err(ScriptError::InvalidOpcode(op.byte())),
         }
         Ok(())
@@ -560,34 +569,157 @@ where
     }
 
     fn exec_numeric_ops(&mut self, op: Numeric) -> Result<(), ScriptError> {
+        //原版 Numeric 分三类：一元数值运算、二元数值/比较运算、三元 OP_WITHIN
         match op {
-            Numeric::Op1Add => {}
-            Numeric::Op1Sub => {}
-            Numeric::Op2Mul => {}
-            Numeric::Op2Div => {}
-            Numeric::OpNegate => {}
-            Numeric::OpAbs => {}
-            Numeric::OpNot => {}
-            Numeric::OpOp0NotEqual => {}
-            Numeric::OpAdd => {}
-            Numeric::OpSub => {}
-            Numeric::OpMul => {}
-            Numeric::OpDiv => {}
-            Numeric::OpMod => {}
-            Numeric::OpLShift => {}
-            Numeric::OpRShift => {}
-            Numeric::OpBoolAnd => {}
-            Numeric::OpBoolOr => {}
-            Numeric::OpNumEqual => {}
-            Numeric::OpNumEqualVerify => {}
-            Numeric::OpNumNotEqual => {}
-            Numeric::OpLessThan => {}
-            Numeric::OpGreaterThan => {}
-            Numeric::OpLessThanOrEqual => {}
-            Numeric::OpGreaterThanOrEqual => {}
-            Numeric::OpMin => {}
-            Numeric::OpMax => {}
-            Numeric::OpWithin => {}
+            // 一元运算符，取出栈顶元素，转数值，加1
+            Numeric::Op1Add => {
+                let n = self.pop_script_num()?;
+                self.push_script_num(n.checked_add(1).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 一元运算符，取出栈顶元素，转数值，减1
+            Numeric::Op1Sub => {
+                let n = self.pop_script_num()?;
+                self.push_script_num(n.checked_sub(1).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 一元运算符，取出栈顶元素，转数值，加2
+            Numeric::Op2Mul => {
+                let n = self.pop_script_num()?;
+                self.push_script_num(n.checked_mul(2).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 一元运算，取栈顶元素，转数值，除2
+            Numeric::Op2Div => {
+                let n = self.pop_script_num()?;
+                self.push_script_num(n / 2)?;
+            }
+            // 一元运算，取负数
+            Numeric::OpNegate => {
+                let n = self.pop_script_num()?;
+                self.push_script_num(n.checked_neg().ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 一元运算，绝对值
+            Numeric::OpAbs => {
+                let n = self.pop_script_num()?;
+                self.push_script_num(n.checked_abs().ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 一元运算，数字等于 0 输出 true，否则 false。
+            Numeric::OpNot => {
+                let n = self.pop_script_num()?;
+                self.push_bool(n == 0)?;
+            }
+            // 一元运算，数字不等于 0 输出 true，否则 false
+            Numeric::OpOp0NotEqual => {
+                let n = self.pop_script_num()?;
+                self.push_bool(n != 0)?;
+            }
+            // 二元运算，left+right
+            Numeric::OpAdd => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_script_num(left.checked_add(right).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 二元运算，left-right
+            Numeric::OpSub => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_script_num(left.checked_sub(right).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 二元运算，left * right
+            Numeric::OpMul => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_script_num(left.checked_mul(right).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+
+            // 二元运算，left/right
+            Numeric::OpDiv => {
+                let (left, right) = self.pop2_script_nums()?;
+                if right == 0 {
+                    return Err(ScriptError::DivisionByZero);
+                }
+                self.push_script_num(left.checked_div(right).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 二元运算，left % right
+            Numeric::OpMod => {
+                let (left, right) = self.pop2_script_nums()?;
+                if right == 0 {
+                    return Err(ScriptError::DivisionByZero);
+                }
+                self.push_script_num(left.checked_rem(right).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 二元运算，位运算，左移，原版限制 shift 在 0..=2048
+            Numeric::OpLShift => {
+                let (left, right) = self.pop2_script_nums()?;
+                let shift = numeric_shift(right)?;
+                self.push_script_num(left.checked_shl(shift).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 二元运算，位运算，右移动，原版限制 shift 在 0..=2048
+            Numeric::OpRShift => {
+                let (left, right) = self.pop2_script_nums()?;
+                let shift = numeric_shift(right)?;
+                self.push_script_num(left.checked_shr(shift).ok_or(ScriptError::NumericOverflow)?)?;
+            }
+            // 二元运算，把两个数字按“是否非零”解释成布尔值。
+            Numeric::OpBoolAnd => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left != 0 && right != 0)?;
+            }
+            // 二元运算，把两个数字按“是否非零”解释成布尔值。
+            Numeric::OpBoolOr => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left != 0 || right != 0)?;
+            }
+            // 二元运算，数值相等/不相等，不是字节相等。
+            Numeric::OpNumEqual => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left == right)?;
+            }
+            //二元运算，数值相等则消耗两个元素且不压栈，不相等返回 VerifyFailed。
+            Numeric::OpNumEqualVerify => {
+                let (left, right) = self.pop2_script_nums()?;
+                if left != right {
+                    return Err(ScriptError::VerifyFailed);
+                }
+            }
+            // 二元运算，数值相等/不相等，不是字节相等。
+            Numeric::OpNumNotEqual => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left != right)?;
+            }
+            // 二元运算，比大小 left<right
+            Numeric::OpLessThan => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left < right)?;
+            }
+            // 二元运算，比大小 left>right
+            Numeric::OpGreaterThan => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left > right)?;
+            }
+            // 二元运算，比大小 left <= right
+            Numeric::OpLessThanOrEqual => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left <= right)?;
+            }
+            // 二元运算，比大小 left >= right
+            Numeric::OpGreaterThanOrEqual => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_bool(left >= right)?;
+            }
+            // 二元运算，取最小值
+            Numeric::OpMin => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_script_num(left.min(right))?;
+            }
+            // 二元运算，取最大值
+            Numeric::OpMax => {
+                let (left, right) = self.pop2_script_nums()?;
+                self.push_script_num(left.max(right))?;
+            }
+            // 三元运算，判断 min <= value < max
+            Numeric::OpWithin => {
+                self.require_stack(3)?;
+                let max = self.pop_script_num()?;
+                let min = self.pop_script_num()?;
+                let value = self.pop_script_num()?;
+                self.push_bool(min <= value && value < max)?;
+            }
         }
         Ok(())
     }
@@ -647,6 +779,26 @@ where
 
         Ok(n as usize)
     }
+
+    fn pop_script_num(&mut self) -> Result<i64, ScriptError> {
+        let value = self.pop()?;
+        cast_script_num_to_i64(&value)
+    }
+
+    fn pop2_script_nums(&mut self) -> Result<(i64, i64), ScriptError> {
+        self.require_stack(2)?;
+        let right = self.pop_script_num()?;
+        let left = self.pop_script_num()?;
+        Ok((left, right))
+    }
+
+    fn push_script_num(&mut self, value: i64) -> Result<(), ScriptError> {
+        self.push(cast_i64_to_script_num(value))
+    }
+
+    fn push_bool(&mut self, value: bool) -> Result<(), ScriptError> {
+        self.push(cast_bool_to_script_num(value))
+    }
 }
 
 fn is_conditional_control_op(op: Control) -> bool {
@@ -673,6 +825,13 @@ fn cast_splice_arg_to_usize(
 ) -> Result<usize, ScriptError> {
     let value = cast_script_num_to_i64(value)?;
     usize::try_from(value).map_err(|_| invalid_splice_arg(name, value, len))
+}
+
+fn numeric_shift(value: i64) -> Result<u32, ScriptError> {
+    if !(0..=2048).contains(&value) {
+        return Err(ScriptError::InvalidNumericShift { shift: value });
+    }
+    u32::try_from(value).map_err(|_| ScriptError::InvalidNumericShift { shift: value })
 }
 
 /// 对两个栈元素执行逐字节位运算。

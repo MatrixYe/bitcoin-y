@@ -108,4 +108,17 @@ pub enum ScriptError {
     /// 其他
     #[error("{0}")]
     OtherError(String),
+
+    /// 数字运算溢出
+    #[error("numeric overflow")]
+    NumericOverflow,
+
+    /// 除数为 0
+    #[error("division by zero")]
+    DivisionByZero,
+
+    /// 非法移位参数
+    #[error("invalid numeric shift: {shift}")]
+    InvalidNumericShift { shift: i64 },
+
 }
