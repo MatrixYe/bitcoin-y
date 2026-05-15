@@ -1,8 +1,9 @@
 // @Name: uint256
 // @Date: 2026/4/14 14:52
 // @Author: Matrix.Ye
-// @Description: 256位无符号整数类型，用于存储哈希值，参考比特币 C++ arith_uint256，采用小端字序存储
+// @Description: 256位无符号整数类型，参考比特币 C++ arith_uint256，采用小端字序存储
 
+/// Uint256：固定 256 位、无符号、小端字序，适合哈希、目标值、PoW 比较
 /// 256位无符号整数，采用小端字序 `[u32; 8]` 存储 (与比特币 C++ arith_uint256 一致)
 /// words[0]=LSW, words[7]=MSW，每个u32内部使用小端字节序
 /// ### SetCompact 算法
