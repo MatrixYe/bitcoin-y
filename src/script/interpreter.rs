@@ -127,7 +127,21 @@ where
         self.stack.push(value);
         Ok(())
     }
-    // 弹出 主栈
+    // 入栈
+    fn push_alt(&mut self, value: Vec<u8>) -> Result<(), ScriptError> {
+        let le = value.len();
+        if le > MAX_SCRIPT_ELEMENT_SIZE {
+            //每次入栈的字节大小最多为 MAX_SCRIPT_ELEMENT_SIZE=520
+            return Err(ScriptError::ElementTooLarge {
+                max: MAX_SCRIPT_ELEMENT_SIZE,
+                actual: le,
+            });
+        }
+        self.alt_stack.push(value);
+        Ok(())
+    }
+
+    // 弹出主栈的栈顶元素
     fn pop(&mut self) -> Result<Vec<u8>, ScriptError> {
         self.stack.pop().ok_or(ScriptError::StackUnderflow)
     }
@@ -136,12 +150,48 @@ where
         self.alt_stack.pop().ok_or(ScriptError::StackUnderflow)
     }
 
+    // 获取栈顶元素,但不弹出
+    fn top(&self) -> Result<Vec<u8>, ScriptError> {
+        self.top_n(0)
+    }
+
+    // 获取栈顶的第n个元素，n=0时表示栈顶
+    fn top_n(&self, n: usize) -> Result<Vec<u8>, ScriptError> {
+        match self.stack.get(self.top_index(n)?) {
+            None => Err(ScriptError::StackUnderflow),
+            Some(v) => Ok(v.clone()),
+        }
+    }
+
+    // 把“从栈顶向下数的深度”转换成 Vec 的真实下标。index=len-1-n
+    fn top_index(&self, n: usize) -> Result<usize, ScriptError> {
+        let offset = n.checked_add(1).ok_or(ScriptError::StackUnderflow)?;
+        self.stack_len()
+            .checked_sub(offset)
+            .ok_or(ScriptError::StackUnderflow)
+    }
+
+    // 移除从栈顶向下数的第 n 个元素，n=0 表示移除栈顶。
+    fn remove_top_n(&mut self, n: usize) -> Result<Vec<u8>, ScriptError> {
+        let index = self.top_index(n)?;
+        Ok(self.stack.remove(index))
+    }
+
+    // 获取栈底的第n个元素，n=0时表示栈底
+    fn bottom_n(&self, n: usize) -> Result<Vec<u8>, ScriptError> {
+        match self.stack.get(n) {
+            None => Err(ScriptError::StackUnderflow),
+            Some(v) => Ok(v.clone()),
+        }
+    }
+
+
     // 获取主栈长度
     fn stack_len(&self) -> usize {
         self.stack.len()
     }
 
-    // 检测栈长度是否符合预期
+    // 检测当前栈的长度是否符合最小预期
     fn require_stack(&self, len: usize) -> Result<(), ScriptError> {
         if self.stack_len() < len {
             return Err(ScriptError::StackUnderflow);
@@ -242,52 +292,13 @@ where
         Ok(())
     }
 
-
-    /// OP_TOALTSTACK: 移动到备用栈,要求主栈至少 1 个元素,原版逻辑是把主栈顶复制到 altstack，然后从主栈弹出。`主栈:   [x] -> [] ;备用栈: []  -> [x]`
-    ///
-    /// OP_FROMALTSTACK: 要求备用栈至少 1 个元素,原版逻辑是把备用栈顶移动回主栈。
-    ///
-    /// OP_DROP: 删除主栈顶 1 个元素,要求至少 1 个元素。`[x] -> []`
-    ///
-    /// OP_2DROP: 删除主栈顶 2 个元素,要求至少 2 个元素。`[x1, x2] -> []`
-    ///
-    /// OP_NIP: 删除栈顶下面的那个元素，保留栈顶。要求至少 2 个元素。原版用 `stack.erase(stack.end() - 2);`
-    ///
-    /// OP_DUP: 复制栈顶,要求至少 1 个元素。 `[x] -> [x, x]`
-    ///
-    /// OP_2DUP: 复制栈顶两个元素,要求至少 2 个元素。`[x1, x2] -> [x1, x2, x1, x2]`
-    ///
-    /// OP_3DUP: 复制栈顶三个元素,要求至少 3 个元素。`[x1, x2, x3] -> [x1, x2, x3, x1, x2, x3]`
-    ///
-    /// OP_OVER: 复制“栈顶下面的元素”到栈顶,要求至少 2 个元素。`[x1, x2] -> [x1, x2, x1]`
-    ///
-    /// OP_2OVER: 复制更深处的两个元素到栈顶,要求至少 4 个元素。`[x1, x2, x3, x4] -> [x1, x2, x3, x4, x1, x2]`
-    ///
-    /// OP_IFDUP: 如果栈顶为真，复制栈顶元素；要求至少 1 个元素。`[x] -> [x, x] | [x]`
-    ///
-    /// OP_SWAP: 交换栈顶两个元素,要求至少 2 个元素。`[x1, x2] -> [x2, x1]`
-    ///
-    /// OP_2SWAP: 交换栈顶两组双元素,要求至少 4 个元素。`[x1, x2, x3, x4] -> [x3, x4, x1, x2]`
-    ///
-    /// OP_ROT: 把第三个元素旋转到栈顶,要求至少 3 个元素,原版用两次 swap 实现。`[x1, x2, x3] -> [x2, x3, x1]`
-    ///
-    /// OP_2ROT: 把最深的一组两个元素移动到栈顶。要求至少 6 个元素。原版先取 x1 x2，从原位置删除，再追加到末尾。`[x1, x2, x3, x4, x5, x6] -> [x3, x4, x5, x6, x1, x2]`
-    ///
-    /// OP_TUCK: 复制栈顶元素，并插入到两个元素下面。要求至少 2 个元素。`[x1, x2] -> [x2, x1, x2]`
-    ///
-    /// OP_DEPTH: 把当前主栈元素数量压栈。原版用 `CBigNum(stack.size()).getvch()`。`[] -> [0] ; [x1, x2]  -> [x1, x2, 2]`
-    ///
-    /// OP_PICK: 先从栈顶取出数字 n，然后复制距离栈顶第 n 个元素到栈顶。n = 0 表示复制原来的栈顶元素。要求至少 2 个元素，且 n >= 0 && n < stack.len()。`[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x2,x3,x4,x2]`
-    ///
-    /// OP_ROLL: 和 OP_PICK 类似，但不是复制，而是把那个元素移动到栈顶。原版在取出目标元素后，如果是 OP_ROLL，会从原位置删除它。`[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x3,x4,x2]`
-    ///
     fn exec_stack_ops(&mut self, op: Stack) -> Result<(), ScriptError> {
         // 19个opcode
         match op {
             // 将主栈栈顶移动到备用栈 `主栈:[x] -> [] ;备用栈:[]  -> [x]`
             Stack::OpToAltStack => {
                 let value = self.pop()?;
-                self.alt_stack.push(value);
+                self.push_alt(value)?;
             }
 
             //将备用栈栈顶移动到主栈
@@ -299,18 +310,15 @@ where
             //复制主栈栈顶 `[x] -> [x, x]`
             Stack::OpDup => {
                 self.require_stack(1)?;
-                let len = self.stack_len();
-                let last = self.stack[len - 1].clone();
-                self.stack.push(last);
+                self.push(self.top()?)?;
             }
 
             //栈顶为真时复制栈顶
             Stack::OpIfDup => {
                 self.require_stack(1)?;
-                let len = self.stack_len();
-                let value = self.stack[len - 1].clone();
-                if cast_script_num_to_bool(&value) {
-                    self.push(value)?;
+                let top = self.top()?;
+                if cast_script_num_to_bool(&top) {
+                    self.push(top)?;
                 }
             }
 
@@ -319,7 +327,7 @@ where
             Stack::Op2Dup => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
-                self.stack.extend_from_within(len - 2..len);
+                self.stack.extend_from_within(len - 2..len); //根据自身拓展
             }
 
             //复制主栈顶三个元素
@@ -335,12 +343,11 @@ where
             // `[x1, x2] -> [x1, x2, x1]`
             Stack::OpOver => {
                 self.require_stack(2)?;
-                let len = self.stack_len();
-                self.stack.push(self.stack[len - 2].clone());
+                self.stack.push(self.top_n(1)?);
             }
 
             //复制主栈中指定的两个较深元素到栈顶
-            //`[x1, x2, x3, x4] -> [x1, x2, x3, x4, x1, x2]`
+            //`[x0,x1, x2, x3, x4] -> [x0,x1, x2, x3, x4, x1, x2]`
             Stack::Op2Over => {
                 self.require_stack(4)?;
                 let len = self.stack_len();
@@ -354,7 +361,7 @@ where
             Stack::OpTuck => {
                 self.require_stack(2)?;
                 let len = self.stack_len();
-                let v = self.stack[len - 1].clone();
+                let v = self.top()?;
                 self.stack.insert(len - 2, v);
             }
 
@@ -374,8 +381,7 @@ where
             //[x1, x2] -> [x2]
             Stack::OpNip => {
                 self.require_stack(2)?;
-                let len = self.stack_len();
-                self.stack.remove(len - 2);
+                self.remove_top_n(1)?;
             }
 
             // 交换主栈顶两个元素
@@ -424,16 +430,16 @@ where
             // Pick:复制指定深度的元素到栈顶：取出栈顶元素作为深度 n，然后获取深度 n 的元素，并复制到栈顶。
             // `[x0,x1,x2,x3,x4,x5=3] -> [x0,x1,x2,x3,x4,x2]`
             Stack::OpPick => {
-                let index = self.pick_or_roll_index()?;
-                let value = self.stack[index].clone();
+                let depth = self.pick_or_roll_depth()?;
+                let value = self.top_n(depth)?;
                 self.push(value)?;
             }
 
             // Roll:移动指定深度的元素到栈顶：取出栈顶元素作为深度 n，然后获取深度 n 的元素，并移动到栈顶。
             // `[x0,x1,x2,x3,x4,x5=3] -> [x0,x2,x3,x4,x2]`
             Stack::OpRoll => {
-                let index = self.pick_or_roll_index()?;
-                let value = self.stack.remove(index);
+                let depth = self.pick_or_roll_depth()?;
+                let value = self.remove_top_n(depth)?;
                 self.push(value)?;
             }
         }
@@ -445,47 +451,24 @@ where
             //拼接两个字节串 `[x1, x2] -> [x1 || x2]`
             Splice::OpCat => {
                 self.require_stack(2)?;
-                let x2 = self.pop()?;
-                let mut x1 = self.pop()?;
-                x1.extend_from_slice(x2.as_slice());
-                self.push(x1)?;
+                let (right, mut left) = (self.pop()?, self.pop()?);
+                left.extend_from_slice(right.as_slice());
+                self.push(left)?;
             }
             //截取字节串的一段
             //[in, begin, size] -> [in[begin .. begin + size]]
             Splice::OpSubStr => {
                 self.require_stack(3)?;
-                let size = self.pop()?;
-                let begin = self.pop()?;
-                let input = self.pop()?;
+                let (size, begin, input) = (self.pop()?, self.pop()?, self.pop()?);
 
-                let size = cast_script_num_to_i64(size.as_slice())?;
-                let begin = cast_script_num_to_i64(begin.as_slice())?;
-                if begin < 0 {
-                    return Err(ScriptError::InvalidSpliceArgument {
-                        name: "begin",
-                        value: begin,
-                        len: input.len(),
-                    });
-                }
-                if size < 0 {
-                    return Err(ScriptError::InvalidSpliceArgument {
-                        name: "size",
-                        value: size,
-                        len: input.len(),
-                    });
-                }
-
-                let end = begin
-                    .checked_add(size)
-                    .ok_or(ScriptError::InvalidSpliceArgument {
-                        name: "size",
-                        value: size,
-                        len: input.len(),
-                    })?;
+                //变量遮蔽
+                let begin = cast_splice_arg_to_usize("begin", &begin, input.len())?;
+                let size = cast_splice_arg_to_usize("size", &size, input.len())?;
+                let end = begin.checked_add(size).ok_or_else(|| invalid_splice_arg("size", size as i64, input.len()))?;
                 // 贴合v0.3.19的语义，如果 begin > in.len()，把 begin clamp 到 in.len()
-                let begin = (begin as usize).min(input.len());
                 // 贴合v0.3.19的语义，如果 end > in.len()，把 end clamp 到 in.len()
-                let end = (end as usize).min(input.len());
+                let begin = begin.min(input.len());
+                let end = end.min(input.len());
                 self.push(input[begin..end].to_vec())?;
             }
 
@@ -493,38 +476,17 @@ where
             //[in, size] -> [in[..size]]
             Splice::OpLeft => {
                 self.require_stack(2)?;
-                let size = self.pop()?;
-                let input = self.pop()?;
-                let size = cast_script_num_to_i64(size.as_slice())?;
-                if size < 0 {
-                    return Err(ScriptError::InvalidSpliceArgument {
-                        name: "size",
-                        value: size,
-                        len: input.len(),
-                    });
-                }
-
-                let size = (size as usize).min(input.len());
+                let (size, input) = (self.pop()?, self.pop()?);
+                let size = cast_splice_arg_to_usize("size", &size, input.len())?.min(input.len());
                 self.push(input[..size].to_vec())?;
             }
 
             //保留右侧后 size 个字节。
             //[in, size] -> [in[in.len() - size ..]]
-
             Splice::OpRight => {
                 self.require_stack(2)?;
-                let size = self.pop()?;
-                let input = self.pop()?;
-                let size = cast_script_num_to_i64(size.as_slice())?;
-                if size < 0 {
-                    return Err(ScriptError::InvalidSpliceArgument {
-                        name: "size",
-                        value: size,
-                        len: input.len(),
-                    });
-                }
-
-                let size = (size as usize).min(input.len());
+                let (size, input) = (self.pop()?, self.pop()?);
+                let size = cast_splice_arg_to_usize("size", &size, input.len())?.min(input.len());
                 self.push(input[input.len() - size..].to_vec())?;
             }
 
@@ -532,31 +494,16 @@ where
             // [in] -> [in, len(in)]
             Splice::OpSize => {
                 self.require_stack(1)?;
-                let len = self.stack[self.stack_len() - 1].len();
+                let top = self.top()?;
+
+                let len = top.len();
                 let script_num = cast_i64_to_script_num(len as i64);
                 self.push(script_num)?;
             }
         }
         Ok(())
     }
-    /// ----BitLogic-----
-    ///
-    /// Invert:非： 弹出 1 个栈元素，对其中每个字节做按位取反。
-    ///
-    /// And:与： 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位与。
-    ///
-    /// Or:或： 弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位或。
-    ///
-    /// Xor: 异或，弹出 2 个栈元素，先把较短元素右侧补 0 到相同长度，再逐字节按位异或。
-    ///
-    /// Equal: 相等，从主栈弹出两个元素，比较字节是否完全相等。相等压入 `[1]`，不相等压入 `[]`。
-    ///
-    /// EqualVerify:相等并验证， 等价于先执行 OP_EQUAL，再执行 OP_VERIFY。
-    ///
-    /// Reserved1:
-    ///
-    /// Reserved2:
-    ///
+    // ----BitLogic-----
     fn exec_bit_logic_ops(&mut self, op: BitLogic) -> Result<(), ScriptError> {
         match op {
 
@@ -578,27 +525,26 @@ where
             }
             BitLogic::OpOr => {
                 self.require_stack(2)?;
-                let right = self.pop()?;
-                let left = self.pop()?;
+                let (right, left) = (self.pop()?, self.pop()?);
+
                 self.push(bit_logic_binary_op(left, right, |a, b| a | b))?;
             }
             BitLogic::OpXor => {
                 self.require_stack(2)?;
-                let right = self.pop()?;
-                let left = self.pop()?;
+                let (right, left) = (self.pop()?, self.pop()?);
                 self.push(bit_logic_binary_op(left, right, |a, b| a ^ b))?;
             }
             BitLogic::OpEqual => {
                 self.require_stack(2)?;
-                let right = self.pop()?;
-                let left = self.pop()?;
+                let (right, left) = (self.pop()?, self.pop()?);
+
                 self.push(cast_bool_to_script_num(left == right))?;
             }
             //等价于先执行 OP_EQUAL，再执行 OP_VERIFY。
             BitLogic::OpEqualVerify => {
                 self.require_stack(2)?;
-                let right = self.pop()?;
-                let left = self.pop()?;
+                let (right, left) = (self.pop()?, self.pop()?);
+
                 if left != right {
                     return Err(ScriptError::EqualVerifyFailed);
                 }
@@ -688,10 +634,10 @@ where
     ///
     /// n = 0 表示当前栈顶；n = 1 表示栈顶下面一个元素。
     ///
-    /// 弹出 n 之后，再在剩余主栈中计算真实数组下标。
+    /// 弹出 n 之后，n 表示在剩余主栈中从栈顶向下数的深度。
     ///
-    /// 返回：真实下标x
-    fn pick_or_roll_index(&mut self) -> Result<usize, ScriptError> {
+    /// 返回：栈顶深度，n = 0 表示剩余主栈的当前栈顶。
+    fn pick_or_roll_depth(&mut self) -> Result<usize, ScriptError> {
         self.require_stack(2)?;
         let n = cast_script_num_to_i64(&self.pop()?)?;
         let len = self.stack_len();
@@ -699,7 +645,7 @@ where
             return Err(ScriptError::InvalidStackIndex { index: n, len });
         }
 
-        Ok(len - 1 - n as usize)
+        Ok(n as usize)
     }
 }
 
@@ -712,6 +658,21 @@ fn is_conditional_control_op(op: Control) -> bool {
         | Control::OpVerNotIf
         | Control::OpEndIf
     )
+}
+
+/// 返回错误：InvalidSpliceArgument
+fn invalid_splice_arg(name: &'static str, value: i64, len: usize) -> ScriptError {
+    ScriptError::InvalidSpliceArgument { name, value, len }
+}
+
+/// 数值转化：splice_arg => usize
+fn cast_splice_arg_to_usize(
+    name: &'static str,
+    value: &[u8],
+    len: usize,
+) -> Result<usize, ScriptError> {
+    let value = cast_script_num_to_i64(value)?;
+    usize::try_from(value).map_err(|_| invalid_splice_arg(name, value, len))
 }
 
 /// 对两个栈元素执行逐字节位运算。

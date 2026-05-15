@@ -12,12 +12,16 @@
 - `nBits` 与目标值转换、PoW 基础校验
 - 密钥、签名与地址生成
 - 脚本系统的初步模块拆分
+
 ## 开发进度
+
 ### 脚本系统
+
 -[x] 操作码分组
 -[ ] 设计脚本系统流程解析、栈机、验证
 
 #### 操作码代码逻辑实现
+
 -[x] Direct Data Push
     -[x] 0x01~0x4b
 -[x] PushOP 组
@@ -33,15 +37,21 @@
     -[x] Op2Over、Op2Swap、Op2Rot
     -[x] Depth、Pick、Roll
 -[x] `BitLogicOp` 组
-    - [x] OpInvert： 语义实现，禁用
-    - [x] OpAnd：语义实现，禁用
-    - [x] OpOr：语义实现，禁用
-    - [x] OpXor：语义实现，禁用
-    - [x] OpEqual：弹出栈顶两个元素，比较字节相等，相等压入true，反之压入false
-    - [x] OpEqualVerify：先执行OpEqual 再执行 OpVerify
--[ ] `SpliceOp` 组
+    - [x] OpInvert：逻辑取反 （语义实现，代码禁用）
+    - [x] OpAnd：逻辑与（语义实现，代码禁用）
+    - [x] OpOr：逻辑或（语义实现，代码禁用）
+    - [x] OpXor：逻辑异或（语义实现，代码禁用）
+    - [x] OpEqual：逻辑等。弹出栈顶两个元素，比较字节相等，相等压入true，反之压入false
+    - [x] OpEqualVerify：逻辑等验。先执行OpEqual 再执行 OpVerify
+-[x] `SpliceOp` 组
+    -[x] OpCat 拼接 （语义实现，代码禁用）
+    -[x] OpSubStr 截取 （语义实现，代码禁用）
+    -[x] OpLeft 左截取 （语义实现，代码禁用）
+    -[x] OpRight 右截取（语义实现，代码禁用）
+    -[x] OpSize 栈顶元素长度压栈
 -[ ] `NumericOp` 组，有点难，先实现一个 script_num 辅助模块
 -[ ] `ControlOp` 组，暂缓，很难
+
 ## 参考资料
 
 ### 交易格式
