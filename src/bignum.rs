@@ -36,10 +36,9 @@ impl BigNum {
         bytes[last_index] &= 0x7f;
 
         let value = BigInt::from_bytes_le(Sign::Plus, &bytes);
-        if negative {
-            BigNum(-value)
-        } else {
-            BigNum(value)
+        match negative {
+            true => BigNum(-value),
+            false => BigNum(value)
         }
     }
 
@@ -55,39 +54,47 @@ impl BigNum {
         if self.is_zero() {
             return Vec::new();
         }
-
-        // number是否是负数
-        let is_negative = self.0.is_negative();
-
-        // 获取 bignum 的绝对值小端字节流
+        let is_negative = self.is_negative();
         let (_, mut bytes) = self.0.abs().to_bytes_le();
-        // 最高位索引
         let last_index = bytes.len() - 1;
+        let last_byte = &mut bytes[last_index];
+        let has_sign = h_bit(*last_byte);
 
-        if is_negative {
-            if h_bit(bytes[last_index]) {
-                bytes.push(0x80);
-            } else {
-                bytes[last_index] |= 0x80;
-            }
-        } else {
-            // 正整数
-            if h_bit(bytes[last_index]) {
-                bytes.push(0x00);
-            }
+        match (is_negative, has_sign) {
+            // 是负数，有符号标识
+            (true, true) => bytes.push(0x80),
+            // 是负数，没有符号标识
+            (true, false) => *last_byte |= 0x80,
+            // 是正数，有符号标识
+            (false, true) => bytes.push(0x00),
+            // 是正数，没有符号标识
+            (false, false) => {}
         }
         bytes
     }
 
+    // 是否为0
     pub fn is_zero(&self) -> bool {
         self.0.is_zero()
     }
 
+    // 是否为负数
+    pub fn is_negative(&self) -> bool {
+        self.0.is_negative()
+    }
+
+    // 获取绝对值
+    pub fn abs(&self) -> BigInt {
+        self.0.abs()
+    }
+
+    // 设置为0
     pub fn zero() -> Self {
         BigNum(BigInt::zero())
     }
 }
 
+// 单字节的最高bit位是否不为0（有符号）
 fn h_bit(x: u8) -> bool {
     x & 0x80 != 0
 }
