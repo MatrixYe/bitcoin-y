@@ -1,6 +1,5 @@
 use bitcoin_y::uint256::Uint256;
 use std::{i64, u16, u32, u64};
-pub mod bignum;
 
 /// @Name: main
 ///

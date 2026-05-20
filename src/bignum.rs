@@ -5,14 +5,104 @@
 /// @Author: Matrix.Ye
 ///
 /// @Description: null
+use crate::uint256::Uint256;
 use num_bigint::{BigInt, Sign};
-use num_traits::{Signed, Zero};
+use num_traits::{Signed, ToPrimitive, Zero};
+use std::fmt;
+use std::ops::{
+    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr,
+    ShrAssign, Sub, SubAssign,
+};
+use thiserror::Error;
 
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum BigNumError {
+    #[error("bignum value cannot fit into {target}")]
+    PrimitiveOverflow { target: &'static str },
+
+    #[error("invalid hex string: {0}")]
+    InvalidHex(String),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BigNum(BigInt);
 
 impl BigNum {
+    /// 从 Rust `i32` 构造 BigNum,对应原版 `CBigNum(int n)`
+    pub fn from_i32(value: i32) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
+    /// 从 Rust `i64` 构造 BigNum,对应原版 `CBigNum(int64 n)`
+    pub fn from_i64(value: i64) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
+    /// 从 Rust `u32` 构造 BigNum,对应原版中较小无符号整数构造函数的常用语义。
+    pub fn from_u32(value: u32) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
+    /// 从 Rust `u64` 构造 BigNum,对应原版 `CBigNum(uint64 n)`。
+    pub fn from_u64(value: u64) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
+    /// 从十六进制字符串构造 BigNum。
+    /// 使用更严格的 Rust 语义：除可选正负号、前后空白和 `0x` / `0X` 前缀外，
+    /// 剩余内容必须全部是十六进制字符。
+    pub fn from_hex(hex: &str) -> Result<Self, BigNumError> {
+        // 空格移除
+        let mut value = hex.trim();
+
+        // 判断正负号
+        let negative = match value.as_bytes().first() {
+            Some(b'-') => {
+                value = value[1..].trim_start();
+                true
+            }
+            Some(b'+') => {
+                value = value[1..].trim_start();
+                false
+            }
+            _ => false,
+        };
+
+        // 移除0x或者0X
+        value = value
+            .strip_prefix("0x")
+            .or_else(|| value.strip_prefix("0X"))
+            .unwrap_or(value);
+
+        // 空处理，0x 表示0
+        if value.is_empty() {
+            return Ok(BigNum::zero());
+        }
+
+        // 字符串字符判断
+        if !value.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(BigNumError::InvalidHex(hex.to_string()));
+        }
+        // 按照16进制，解析每个字符为字节`1 -> 1u8`,`f -> 15u8`
+        // 字节流 转化为 BigInt
+        let n = BigInt::parse_bytes(value.as_bytes(), 16)
+            .ok_or_else(|| BigNumError::InvalidHex(hex.to_string()))?;
+
+        // 匹配正负号
+        match negative {
+            true => Ok(BigNum(-n)),
+            false => Ok(BigNum(n)),
+        }
+    }
+
+    /// 从 Uint256 构造 BigNum。
+    ///
+    /// 当前先保留 API，等 `uint256` 模块语义稳定后再补具体实现。
+    pub fn from_uint256(_value: Uint256) -> Self {
+        unimplemented!("BigNum::from_uint256 will be implemented after uint256 is finalized")
+    }
+
     /// 将 Bitcoin 风格的小端有符号字节流转换成 BigNum。
     ///
     /// 这里的小端字节不是二进制补码，而是“符号-绝对值”格式：
@@ -38,7 +128,7 @@ impl BigNum {
         let value = BigInt::from_bytes_le(Sign::Plus, &bytes);
         match negative {
             true => BigNum(-value),
-            false => BigNum(value)
+            false => BigNum(value),
         }
     }
 
@@ -73,34 +163,246 @@ impl BigNum {
         bytes
     }
 
-    // 是否为0
+    /// 转换为 `usize`，超出目标类型范围时返回错误。
+    pub fn to_usize(&self) -> Result<usize, BigNumError> {
+        self.0
+            .to_usize()
+            .ok_or(BigNumError::PrimitiveOverflow { target: "usize" })
+    }
+
+    /// 转换为 `i8`，超出目标类型范围时返回错误。
+    pub fn to_i8(&self) -> Result<i8, BigNumError> {
+        self.0
+            .to_i8()
+            .ok_or(BigNumError::PrimitiveOverflow { target: "i8" })
+    }
+
+    /// 转换为 `i64`，超出目标类型范围时返回错误。
+    pub fn to_i64(&self) -> Result<i64, BigNumError> {
+        self.0
+            .to_i64()
+            .ok_or(BigNumError::PrimitiveOverflow { target: "i64" })
+    }
+
+    /// 转换为 `u32`，负数或超出 `u32` 范围时返回错误。
+    pub fn to_u32(&self) -> Result<u32, BigNumError> {
+        self.0
+            .to_u32()
+            .ok_or(BigNumError::PrimitiveOverflow { target: "u32" })
+    }
+
+    /// 转换为十六进制字符串。
+    ///
+    /// 输出不带 `0x` 前缀，负数使用 `-` 前缀。
+    pub fn to_hex(&self) -> String {
+        self.to_string_base(16)
+    }
+
+    /// 按指定进制转换为字符串。
+    ///
+    /// 原版 `ToString` 默认使用 10 进制，`GetHex` 使用 16 进制。
+    pub fn to_string_base(&self, radix: u32) -> String {
+        self.0.to_str_radix(radix)
+    }
+
+    /// 转换为 Uint256。
+    ///
+    /// 当前先保留 API，等 `uint256` 模块语义稳定后再补具体实现。
+    pub fn to_uint256(&self) -> Uint256 {
+        unimplemented!("BigNum::to_uint256 will be implemented after uint256 is finalized")
+    }
+
+    /// 序列化 BigNum。
+    ///
+    /// 当前先保留 API，后续再对齐项目统一序列化规则。
+    pub fn serialize(&self) -> Vec<u8> {
+        unimplemented!("BigNum::serialize is not implemented yet")
+    }
+
+    /// 反序列化 BigNum。
+    ///
+    /// 当前先保留 API，后续再对齐项目统一序列化规则。
+    pub fn unserialize(_bytes: &[u8]) -> Self {
+        unimplemented!("BigNum::unserialize is not implemented yet")
+    }
+
+    /// 是否为0,0 => true,ther -> false
     pub fn is_zero(&self) -> bool {
         self.0.is_zero()
     }
 
-    // 是否为负数
+    /// 是否为负数,负数->true,正数/零 -> false
     pub fn is_negative(&self) -> bool {
         self.0.is_negative()
     }
 
-    // 获取绝对值
+    /// 是否为正数，正数:true,负数:false
+    pub fn is_positive(&self) -> bool {
+        self.0.is_positive()
+    }
+    /// 获取绝对值
     pub fn abs(&self) -> BigInt {
         self.0.abs()
     }
 
-    // 设置为0
+    /// 设置为0
     pub fn zero() -> Self {
         BigNum(BigInt::zero())
     }
+
+    /// 贴近原版 CBigNum::operator>>= 的保护逻辑：
+    /// 如果 1*2^shift 大于当前值，直接返回 0，避免底层右移在旧 OpenSSL 上的异常行为。
+    /// ```cpp
+    /// CBigNum a = 1;
+    /// a <<= shift;
+    /// if (BN_cmp(&a, this) > 0)
+    /// {
+    /// *this = 0;
+    /// return *this;
+    /// }
+    /// BN_rshift(this, this, shift);
+    /// ```
+
+    fn shr_like_cpp(mut self, shift: u32) -> Self {
+        let threshold = BigInt::from(1u8) << shift as usize;
+        match threshold > self.0 {
+            true => BigNum::zero(),
+            false => {
+                self.0 >>= shift as usize;
+                self
+            }
+        }
+    }
 }
 
-// 单字节的最高bit位是否不为0（有符号）
+// 工具函数：判断单字节的最高bit位是否不为0（有符号）
 fn h_bit(x: u8) -> bool {
     x & 0x80 != 0
 }
 
+/// 默认数值：BigNum(0)
 impl Default for BigNum {
     fn default() -> Self {
         Self::zero()
+    }
+}
+
+/// rust风味的to_string,转成十进制的字符串格式
+impl fmt::Display for BigNum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string_base(10))
+    }
+}
+
+//------------------------运算符重载-------------------------------//
+// 算数运算符需要单独实现。
+// 比较运算符已经通过特征属性来交给编译器自动实现，无需像CPP一样手动再实现一遍。因此对于operator==
+// operator!=
+// operator<
+// operator>
+// operator<=
+// operator>=
+// 的实现已经跳过。
+
+/// 算数运算: +
+impl Add for BigNum {
+    type Output = BigNum;
+    fn add(self, rhs: Self) -> Self::Output {
+        BigNum(self.0 + rhs.0)
+    }
+}
+
+/// 算数运算: +=
+impl AddAssign for BigNum {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
+
+/// 算数运算: 减:-
+impl Sub for BigNum {
+    type Output = BigNum;
+    fn sub(self, rhs: Self) -> Self::Output {
+        BigNum(self.0 - rhs.0)
+    }
+}
+
+/// 算数运算: -=
+impl SubAssign for BigNum {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0;
+    }
+}
+
+/// 算数运算: *
+impl Mul for BigNum {
+    type Output = BigNum;
+    fn mul(self, rhs: Self) -> Self::Output {
+        BigNum(self.0 * rhs.0)
+    }
+}
+/// 算数运算: *=
+impl MulAssign for BigNum {
+    fn mul_assign(&mut self, rhs: Self) {
+        self.0 *= rhs.0;
+    }
+}
+
+/// 算数运算:  /
+impl Div for BigNum {
+    type Output = BigNum;
+    fn div(self, rhs: Self) -> Self::Output {
+        BigNum(self.0 / rhs.0)
+    }
+}
+
+/// 算数运算: /=
+impl DivAssign for BigNum {
+    fn div_assign(&mut self, rhs: Self) {
+        self.0 /= rhs.0;
+    }
+}
+
+/// 算数运算: %
+impl Rem for BigNum {
+    type Output = BigNum;
+    fn rem(self, rhs: Self) -> Self::Output {
+        BigNum(self.0 % rhs.0)
+    }
+}
+
+/// 算数运算: %=
+impl RemAssign for BigNum {
+    fn rem_assign(&mut self, rhs: Self) {
+        self.0 %= rhs.0;
+    }
+}
+
+/// 算数运算: <<
+impl Shl<u32> for BigNum {
+    type Output = BigNum;
+    fn shl(self, rhs: u32) -> Self::Output {
+        BigNum(self.0 << rhs as usize)
+    }
+}
+
+/// 算数运算: <<=
+impl ShlAssign<u32> for BigNum {
+    fn shl_assign(&mut self, rhs: u32) {
+        self.0 <<= rhs as usize;
+    }
+}
+
+/// 算数运算: >>
+impl Shr<u32> for BigNum {
+    type Output = BigNum;
+    fn shr(self, rhs: u32) -> Self::Output {
+        self.shr_like_cpp(rhs)
+    }
+}
+/// 算数运算:  >>=
+impl ShrAssign<u32> for BigNum {
+    fn shr_assign(&mut self, rhs: u32) {
+        *self = self.clone().shr_like_cpp(rhs);
     }
 }
