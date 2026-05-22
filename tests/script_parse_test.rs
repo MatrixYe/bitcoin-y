@@ -115,7 +115,8 @@ fn decode_returns_error_when_push_payload_is_truncated() {
 
 #[test]
 fn decode_returns_error_when_pushdata_length_field_is_truncated() {
-    let err = decode(&[PushValue::PushData2.byte(), 1]).expect_err("PUSHDATA2 needs two length bytes");
+    let err =
+        decode(&[PushValue::PushData2.byte(), 1]).expect_err("PUSHDATA2 needs two length bytes");
 
     assert_eq!(err, ScriptError::UnexpectedEndOfScript);
 }
@@ -179,7 +180,7 @@ fn encode_rejects_direct_push_when_length_does_not_match() {
         kind: PushBytesKind::Direct(2),
         bytes: vec![0xaa],
     })])
-        .expect_err("direct push length must match bytes length");
+    .expect_err("direct push length must match bytes length");
 
     assert_eq!(
         err,
@@ -197,7 +198,7 @@ fn encode_rejects_invalid_direct_push_length_byte() {
         kind: PushBytesKind::Direct(0),
         bytes: Vec::new(),
     })])
-        .expect_err("Direct(0) is represented by OP_0 in this parser design");
+    .expect_err("Direct(0) is represented by OP_0 in this parser design");
 
     assert_eq!(err, ScriptError::InvalidPushDataDirect { actual: 0 });
 }
@@ -208,7 +209,7 @@ fn encode_rejects_pushdata1_payload_that_is_too_large() {
         kind: PushBytesKind::PushData1,
         bytes: vec![0; 256],
     })])
-        .expect_err("PUSHDATA1 can encode at most 255 bytes");
+    .expect_err("PUSHDATA1 can encode at most 255 bytes");
 
     assert_eq!(
         err,

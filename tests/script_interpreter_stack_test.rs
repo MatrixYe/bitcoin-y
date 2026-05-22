@@ -16,7 +16,10 @@ fn stack_op(op: Stack) -> ScriptToken {
 fn execute_alt_stack_ops_move_between_stacks() {
     let mut interpreter = Interpreter::with_stack(vec![byte(1), byte(2)]);
     interpreter
-        .execute(&[stack_op(Stack::OpToAltStack), stack_op(Stack::OpFromAltStack)])
+        .execute(&[
+            stack_op(Stack::OpToAltStack),
+            stack_op(Stack::OpFromAltStack),
+        ])
         .unwrap();
     assert_eq!(interpreter.stack, vec![byte(1), byte(2)]);
 }
@@ -86,14 +89,8 @@ fn execute_swap_ops_reorder_stack() {
     interpreter.execute(&[stack_op(Stack::Op2Swap)]).unwrap();
     assert_eq!(interpreter.stack, vec![byte(3), byte(4), byte(1), byte(2)]);
 
-    let mut interpreter = Interpreter::with_stack(vec![
-        byte(1),
-        byte(2),
-        byte(3),
-        byte(4),
-        byte(5),
-        byte(6),
-    ]);
+    let mut interpreter =
+        Interpreter::with_stack(vec![byte(1), byte(2), byte(3), byte(4), byte(5), byte(6)]);
     interpreter.execute(&[stack_op(Stack::Op2Rot)]).unwrap();
     assert_eq!(
         interpreter.stack,
@@ -120,14 +117,16 @@ fn execute_pick_and_roll_use_script_num_index() {
     interpreter.execute(&[stack_op(Stack::OpRoll)]).unwrap();
     assert_eq!(interpreter.stack, vec![byte(1), byte(3), byte(2)]);
 
-    let mut interpreter = Interpreter::with_stack(vec![byte(1), byte(2), byte(3), byte(4), byte(3)]);
+    let mut interpreter =
+        Interpreter::with_stack(vec![byte(1), byte(2), byte(3), byte(4), byte(3)]);
     interpreter.execute(&[stack_op(Stack::OpPick)]).unwrap();
     assert_eq!(
         interpreter.stack,
         vec![byte(1), byte(2), byte(3), byte(4), byte(1)]
     );
 
-    let mut interpreter = Interpreter::with_stack(vec![byte(1), byte(2), byte(3), byte(4), byte(3)]);
+    let mut interpreter =
+        Interpreter::with_stack(vec![byte(1), byte(2), byte(3), byte(4), byte(3)]);
     interpreter.execute(&[stack_op(Stack::OpRoll)]).unwrap();
     assert_eq!(interpreter.stack, vec![byte(2), byte(3), byte(4), byte(1)]);
 }
@@ -172,7 +171,9 @@ fn execute_stack_ops_return_errors_for_invalid_stack_state() {
     assert_eq!(err, ScriptError::StackUnderflow);
 
     let mut interpreter = Interpreter::with_stack(vec![byte(1), byte(2)]);
-    let err = interpreter.execute(&[stack_op(Stack::Op2Swap)]).unwrap_err();
+    let err = interpreter
+        .execute(&[stack_op(Stack::Op2Swap)])
+        .unwrap_err();
     assert_eq!(err, ScriptError::StackUnderflow);
 
     let mut interpreter = Interpreter::with_stack(vec![byte(1), byte(2)]);

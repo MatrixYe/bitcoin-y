@@ -21,18 +21,19 @@ fn execute_op_cat_concatenates_bytes_when_rule_allows_it() {
     assert_eq!(interpreter.stack, vec![b"hello world".to_vec()]);
 
     let mut interpreter = Interpreter::with_stack(vec![b"a".to_vec(), b"b".to_vec()]);
-    let err = interpreter.execute(&[splice_op(Splice::OpCat)]).unwrap_err();
+    let err = interpreter
+        .execute(&[splice_op(Splice::OpCat)])
+        .unwrap_err();
     assert_eq!(err, ScriptError::DisabledOpcode(Splice::OpCat.byte()));
 }
 
 // 测试 OP_CAT：拼接结果仍受单个栈元素 520 字节限制。
 #[test]
 fn execute_op_cat_rejects_too_large_result() {
-    let mut interpreter = open_interpreter(vec![
-        vec![0; MAX_SCRIPT_ELEMENT_SIZE],
-        vec![0; 1],
-    ]);
-    let err = interpreter.execute(&[splice_op(Splice::OpCat)]).unwrap_err();
+    let mut interpreter = open_interpreter(vec![vec![0; MAX_SCRIPT_ELEMENT_SIZE], vec![0; 1]]);
+    let err = interpreter
+        .execute(&[splice_op(Splice::OpCat)])
+        .unwrap_err();
     assert_eq!(
         err,
         ScriptError::ElementTooLarge {
@@ -72,32 +73,32 @@ fn execute_op_left_and_right_keep_requested_side() {
     let mut interpreter = open_interpreter(vec![b"abcdef".to_vec(), vec![9]]);
     interpreter.execute(&[splice_op(Splice::OpLeft)]).unwrap();
     assert_eq!(interpreter.stack, vec![b"abcdef".to_vec()]);
+
+    let mut interpreter = open_interpreter(vec![b"abcdef".to_vec(), vec![9]]);
+    interpreter.execute(&[splice_op(Splice::OpRight)]).unwrap();
+    assert_eq!(interpreter.stack, vec![b"abcdef".to_vec()]);
 }
 
 // 测试负数参数：Splice 的位置/长度参数不能为负。
 #[test]
 fn execute_splice_ops_reject_negative_indexes() {
     let mut interpreter = open_interpreter(vec![b"abcdef".to_vec(), vec![0x81]]);
-    let err = interpreter.execute(&[splice_op(Splice::OpLeft)]).unwrap_err();
-    assert_eq!(
-        err,
-        ScriptError::InvalidSpliceArgument {
-            name: "size",
-            value: -1,
-            len: 6,
-        }
-    );
+    let err = interpreter
+        .execute(&[splice_op(Splice::OpLeft)])
+        .unwrap_err();
+    assert_eq!(err, ScriptError::InvalidSpliceArgument);
 
     let mut interpreter = open_interpreter(vec![b"abcdef".to_vec(), vec![0], vec![0x81]]);
-    let err = interpreter.execute(&[splice_op(Splice::OpSubStr)]).unwrap_err();
-    assert_eq!(
-        err,
-        ScriptError::InvalidSpliceArgument {
-            name: "size",
-            value: -1,
-            len: 6,
-        }
-    );
+    let err = interpreter
+        .execute(&[splice_op(Splice::OpSubStr)])
+        .unwrap_err();
+    assert_eq!(err, ScriptError::InvalidSpliceArgument);
+
+    let mut interpreter = open_interpreter(vec![b"abcdef".to_vec(), vec![10], vec![0x85]]);
+    let err = interpreter
+        .execute(&[splice_op(Splice::OpSubStr)])
+        .unwrap_err();
+    assert_eq!(err, ScriptError::InvalidSpliceArgument);
 }
 
 // 测试 OP_SIZE：不移除原栈顶，只把字节长度按 ScriptNum 编码后压栈。

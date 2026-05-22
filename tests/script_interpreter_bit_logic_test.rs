@@ -12,7 +12,9 @@ fn bit_logic_op(op: BitLogic) -> ScriptToken {
 #[test]
 fn execute_op_equal_pushes_true_when_bytes_are_equal() {
     let mut interpreter = Interpreter::with_stack(vec![vec![1, 2], vec![1, 2]]);
-    interpreter.execute(&[bit_logic_op(BitLogic::OpEqual)]).unwrap();
+    interpreter
+        .execute(&[bit_logic_op(BitLogic::OpEqual)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![vec![0x01]]);
 }
 
@@ -20,7 +22,9 @@ fn execute_op_equal_pushes_true_when_bytes_are_equal() {
 #[test]
 fn execute_op_equal_pushes_false_when_bytes_are_not_equal() {
     let mut interpreter = Interpreter::with_stack(vec![vec![1], vec![2]]);
-    interpreter.execute(&[bit_logic_op(BitLogic::OpEqual)]).unwrap();
+    interpreter
+        .execute(&[bit_logic_op(BitLogic::OpEqual)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![Vec::<u8>::new()]);
 }
 
@@ -28,7 +32,9 @@ fn execute_op_equal_pushes_false_when_bytes_are_not_equal() {
 #[test]
 fn execute_op_equal_compares_raw_bytes_not_numeric_values() {
     let mut interpreter = Interpreter::with_stack(vec![vec![0x01], vec![0x01, 0x00]]);
-    interpreter.execute(&[bit_logic_op(BitLogic::OpEqual)]).unwrap();
+    interpreter
+        .execute(&[bit_logic_op(BitLogic::OpEqual)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![Vec::<u8>::new()]);
 }
 
@@ -36,7 +42,9 @@ fn execute_op_equal_compares_raw_bytes_not_numeric_values() {
 #[test]
 fn execute_op_equal_requires_two_stack_items() {
     let mut interpreter = Interpreter::with_stack(vec![vec![1]]);
-    let err = interpreter.execute(&[bit_logic_op(BitLogic::OpEqual)]).unwrap_err();
+    let err = interpreter
+        .execute(&[bit_logic_op(BitLogic::OpEqual)])
+        .unwrap_err();
     assert_eq!(err, ScriptError::StackUnderflow);
 }
 
@@ -81,19 +89,25 @@ fn execute_bit_logic_ops_when_rule_allows_them() {
     // 与
     let mut interpreter =
         Interpreter::with_stack_and_rules(vec![vec![0b1010_0000], vec![0b1100_0000]], RuleOpen);
-    interpreter.execute(&[bit_logic_op(BitLogic::OpAnd)]).unwrap();
+    interpreter
+        .execute(&[bit_logic_op(BitLogic::OpAnd)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![vec![0b1000_0000]]);
 
     // 或
     let mut interpreter =
         Interpreter::with_stack_and_rules(vec![vec![0b1010_0000], vec![0b1100_0000]], RuleOpen);
-    interpreter.execute(&[bit_logic_op(BitLogic::OpOr)]).unwrap();
+    interpreter
+        .execute(&[bit_logic_op(BitLogic::OpOr)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![vec![0b1110_0000]]);
 
     // 异或
     let mut interpreter =
         Interpreter::with_stack_and_rules(vec![vec![0b1010_0000], vec![0b1100_0000]], RuleOpen);
-    interpreter.execute(&[bit_logic_op(BitLogic::OpXor)]).unwrap();
+    interpreter
+        .execute(&[bit_logic_op(BitLogic::OpXor)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![vec![0b0110_0000]]);
 
     // 非

@@ -5,7 +5,6 @@
 /// @Author: Matrix.Ye
 ///
 /// @Description: null
-
 use bitcoin_y::bignum::{BigNum, BigNumError};
 
 
@@ -15,21 +14,30 @@ fn test_is_negative() {
     let cases2 = [-1, -2, -4, -8, -16, -32, -64, -128];
     let cases3 = [0, -0];
 
-    cases1.into_iter().map(|i| BigNum::from_i32(i)).for_each(|x| {
-        println!("{:?}", x);
-        assert_eq!(x.is_negative(), false);
-        assert_eq!(x.is_positive(), true);
-    });
+    cases1
+        .into_iter()
+        .map(|i| BigNum::from_i32(i))
+        .for_each(|x| {
+            println!("{:?}", x);
+            assert_eq!(x.is_negative(), false);
+            assert_eq!(x.is_positive(), true);
+        });
 
-    cases2.into_iter().map(|i| BigNum::from_i32(i)).for_each(|x| {
-        assert_eq!(x.is_negative(), true);
-        assert_eq!(x.is_positive(), false);
-    });
+    cases2
+        .into_iter()
+        .map(|i| BigNum::from_i32(i))
+        .for_each(|x| {
+            assert_eq!(x.is_negative(), true);
+            assert_eq!(x.is_positive(), false);
+        });
 
-    cases3.into_iter().map(|i| BigNum::from_i32(i)).for_each(|x| {
-        assert_eq!(x.is_negative(), false);
-        assert_eq!(x.is_positive(), false);
-    });
+    cases3
+        .into_iter()
+        .map(|i| BigNum::from_i32(i))
+        .for_each(|x| {
+            assert_eq!(x.is_negative(), false);
+            assert_eq!(x.is_positive(), false);
+        });
 }
 
 // 测试 Rust 原生整数构造 BigNum，并验证输出符合 Bitcoin 小端有符号字节格式。
@@ -43,7 +51,10 @@ fn test_bn_from_primitive_integers() {
         (BigNum::from_i64(128), vec![0x80, 0x00]),
         (BigNum::from_i64(-128), vec![0x80, 0x80]),
         (BigNum::from_u32(256), vec![0x00, 0x01]),
-        (BigNum::from_u64(0x8000_0000), vec![0x00, 0x00, 0x00, 0x80, 0x00]),
+        (
+            BigNum::from_u64(0x8000_0000),
+            vec![0x00, 0x00, 0x00, 0x80, 0x00],
+        ),
     ];
 
     for (bn, bytes) in cases {
@@ -80,12 +91,7 @@ fn test_bn_positive_values_round_trip() {
 // 测试负数
 #[test]
 fn test_bn_negative_values_round_trip() {
-    let cases = [
-        vec![0x81],
-        vec![0xff],
-        vec![0x80, 0x80],
-        vec![0x00, 0x81],
-    ];
+    let cases = [vec![0x81], vec![0xff], vec![0x80, 0x80], vec![0x00, 0x81]];
 
     for bytes in cases {
         let n = BigNum::from_bytes_le(&bytes);
@@ -108,12 +114,7 @@ fn script_num_conversion_normalizes_non_minimal_zero() {
 //测试0,所有的0
 #[test]
 fn test_bytes_to_bignum() {
-    let cases = [
-        vec![0x00],
-        vec![0x80],
-        vec![0x00, 0x00],
-        vec![0x00, 0x80],
-    ];
+    let cases = [vec![0x00], vec![0x80], vec![0x00, 0x00], vec![0x00, 0x80]];
     let zeros: Vec<_> = cases
         .into_iter()
         .map(|bytes| BigNum::from_bytes_le(bytes.as_slice()))
@@ -127,11 +128,7 @@ fn test_bytes_to_bignum() {
 #[test]
 fn test_bn_operators() {
     // 加法
-    let add_cases = [
-        [99, 99, 198],
-        [-99, -99, -198],
-        [-99, 99, 0],
-    ];
+    let add_cases = [[99, 99, 198], [-99, -99, -198], [-99, 99, 0]];
     add_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row[0]);
         let y = BigNum::from_i32(row[1]);
@@ -140,11 +137,7 @@ fn test_bn_operators() {
     });
 
     // 减法
-    let sub_cases = [
-        [198, 99, 99],
-        [-198, -99, -99],
-        [-99, 99, -198],
-    ];
+    let sub_cases = [[198, 99, 99], [-198, -99, -99], [-99, 99, -198]];
     sub_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row[0]);
         let y = BigNum::from_i32(row[1]);
@@ -153,11 +146,7 @@ fn test_bn_operators() {
     });
 
     // 乘法
-    let mul_cases = [
-        [12, 12, 144],
-        [-12, 12, -144],
-        [-12, -12, 144],
-    ];
+    let mul_cases = [[12, 12, 144], [-12, 12, -144], [-12, -12, 144]];
     mul_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row[0]);
         let y = BigNum::from_i32(row[1]);
@@ -166,11 +155,7 @@ fn test_bn_operators() {
     });
 
     // 除法
-    let div_cases = [
-        [99, 3, 33],
-        [-99, 3, -33],
-        [99, -3, -33],
-    ];
+    let div_cases = [[99, 3, 33], [-99, 3, -33], [99, -3, -33]];
     div_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row[0]);
         let y = BigNum::from_i32(row[1]);
@@ -179,11 +164,7 @@ fn test_bn_operators() {
     });
 
     // 取模
-    let rem_cases = [
-        [99, 10, 9],
-        [100, 10, 0],
-        [101, 10, 1],
-    ];
+    let rem_cases = [[99, 10, 9], [100, 10, 0], [101, 10, 1]];
     rem_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row[0]);
         let y = BigNum::from_i32(row[1]);
@@ -192,11 +173,7 @@ fn test_bn_operators() {
     });
 
     // 左移
-    let shl_cases = [
-        (1, 8, 256),
-        (2, 7, 256),
-        (-2, 7, -256),
-    ];
+    let shl_cases = [(1, 8, 256), (2, 7, 256), (-2, 7, -256)];
     shl_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row.0);
         let z = BigNum::from_i32(row.2);
@@ -204,11 +181,7 @@ fn test_bn_operators() {
     });
 
     // 右移：当前实现贴近原版 CBigNum::operator>>= 的保护逻辑。
-    let shr_cases = [
-        (256, 8, 1),
-        (1, 2, 0),
-        (-8, 1, 0),
-    ];
+    let shr_cases = [(256, 8, 1), (1, 2, 0), (-8, 1, 0)];
     shr_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row.0);
         let z = BigNum::from_i32(row.2);
@@ -246,12 +219,7 @@ fn test_bn_compare_operators() {
     });
 
     // 小于 / 大于 / 小于等于 / 大于等于
-    let order_cases = [
-        (-100, -99),
-        (-1, 0),
-        (0, 1),
-        (99, 100),
-    ];
+    let order_cases = [(-100, -99), (-1, 0), (0, 1), (99, 100)];
     order_cases.iter().for_each(|row| {
         let x = BigNum::from_i32(row.0);
         let y = BigNum::from_i32(row.1);
@@ -271,8 +239,14 @@ fn test_bn_compare_operators() {
 #[test]
 fn test_bn_to_primitive_integers() {
     assert_eq!(BigNum::from_i32(127).to_i8(), Ok(127));
-    assert_eq!(BigNum::from_i32(128).to_i8(), Err(BigNumError::PrimitiveOverflow { target: "i8" }));
-    assert_eq!(BigNum::from_i32(-1).to_usize(), Err(BigNumError::PrimitiveOverflow { target: "usize" }));
+    assert_eq!(
+        BigNum::from_i32(128).to_i8(),
+        Err(BigNumError::PrimitiveOverflow { target: "i8" })
+    );
+    assert_eq!(
+        BigNum::from_i32(-1).to_usize(),
+        Err(BigNumError::PrimitiveOverflow { target: "usize" })
+    );
     assert_eq!(BigNum::from_i64(i64::MAX).to_i64(), Ok(i64::MAX));
     assert_eq!(BigNum::from_u64(u32::MAX as u64).to_u32(), Ok(u32::MAX));
     assert_eq!(
@@ -304,4 +278,15 @@ fn test_bn_hex_conversion() {
         BigNum::from_hex("not-hex"),
         Err(BigNumError::InvalidHex("not-hex".to_string()))
     );
+}
+
+#[test]
+fn test_equal() {
+    let a = BigNum::from_i32(0x01);
+    let b = BigNum::from_i32(0x0001);
+    let c = BigNum::from_i32(0x000001);
+    let d = BigNum::from_i32(0x00000001);
+    assert_eq!(a, b);
+    assert_eq!(b, c);
+    assert_eq!(c, d);
 }

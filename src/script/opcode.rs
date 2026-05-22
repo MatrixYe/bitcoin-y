@@ -23,11 +23,6 @@
 use std::fmt;
 
 
-
-
-
-
-
 /// ## 操作码表,取自比特币维基百科
 ///
 /// ### PushValue
@@ -355,7 +350,7 @@ opcode_group! {
         OpNegate => (0x8f, "OP_NEGATE"),
         OpAbs => (0x90, "OP_ABS"),
         OpNot => (0x91, "OP_NOT"),
-        OpOp0NotEqual => (0x92, "OP_0NOTEQUAL"),
+        Op0NotEqual => (0x92, "OP_0NOTEQUAL"),
         OpAdd => (0x93, "OP_ADD"),
         OpSub => (0x94, "OP_SUB"),
         OpMul => (0x95, "OP_MUL"),

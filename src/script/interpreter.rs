@@ -1,4 +1,7 @@
-use crate::script::consts::{MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE};
+use crate::bignum::BigNum;
+use crate::script::consts::{
+    MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE,
+};
 use crate::script::opcode::{
     BitLogic, Control, Crypto, Expansion, Numeric, OpCode, PushValue, Splice, Stack,
 };
@@ -45,7 +48,6 @@ pub struct Interpreter<R: ScriptRules = RuleV0_3_19> {
     // 主栈
     pub stack: StackType,
     // 备用栈,提供一个临时存放区只通过 OP_TOALSTACK / OP_FROMALSTACK 显式移动数据。
-
     alt_stack: StackType,
 
     // 条件执行栈（非数据栈） OP_IF / OP_ELSE / OP_ENDIF 时使用
@@ -185,7 +187,6 @@ where
         }
     }
 
-
     // 获取主栈长度
     fn stack_len(&self) -> usize {
         self.stack.len()
@@ -224,7 +225,6 @@ where
     pub fn execute(&mut self, instructions: &[ScriptToken]) -> Result<(), ScriptError> {
         for instruction in instructions {
             match instruction {
-
                 // 数据直接入栈
                 ScriptToken::Data(data) => {
                     self.push(data.stack_bytes()?)?;
@@ -269,9 +269,7 @@ where
 
     fn execute_push_ops(&mut self, op: PushValue) -> Result<(), ScriptError> {
         match op {
-            PushValue::OpReserved => {
-                Err(ScriptError::ReservedOpcode(op.byte()))
-            }
+            PushValue::OpReserved => Err(ScriptError::ReservedOpcode(op.byte())),
             _ => {
                 /*
                 parser 已经把 PUSHDATA1/2/4 解析成 ScriptToken::Data，
@@ -347,7 +345,6 @@ where
                 self.stack.extend_from_within(len - 3..len);
             }
 
-
             //复制“栈顶下面的元素”到栈顶,要求至少 2 个元素。
             // `[x1, x2] -> [x1, x2, x1]`
             Stack::OpOver => {
@@ -362,7 +359,6 @@ where
                 let len = self.stack_len();
                 self.stack.extend_from_within(len - 4..len - 2);
             }
-
 
             // OP_TUCK: 复制栈顶元素，并插入到两个元素下面。
             // 要求至少 2 个元素。
@@ -428,12 +424,11 @@ where
                 self.stack.append(&mut values);
             }
 
-
             // 将当前主栈深度压栈
             // `[x0,x1,x2,x3] -> [x0,x1,x2,x3,4]`
             Stack::OpDepth => {
-                let depth = cast_i64_to_script_num(self.stack_len() as i64);
-                self.push(depth)?;
+                let depth = BigNum::from_usize(self.stack_len());
+                self.push_bignum(depth)?;
             }
 
             // Pick:复制指定深度的元素到栈顶：取出栈顶元素作为深度 n，然后获取深度 n 的元素，并复制到栈顶。
@@ -470,15 +465,19 @@ where
                 self.require_stack(3)?;
                 let (size, begin, input) = (self.pop()?, self.pop()?, self.pop()?);
 
-                //变量遮蔽
-                let begin = cast_splice_arg_to_usize("begin", &begin, input.len())?;
-                let size = cast_splice_arg_to_usize("size", &size, input.len())?;
-                let end = begin.checked_add(size).ok_or_else(|| invalid_splice_arg("size", size as i64, input.len()))?;
-                // 贴合v0.3.19的语义，如果 begin > in.len()，把 begin clamp 到 in.len()
-                // 贴合v0.3.19的语义，如果 end > in.len()，把 end clamp 到 in.len()
+                let begin = cast_splice_arg_to_usize(&begin)?;
+                let size = cast_splice_arg_to_usize(&size)?;
+                let end = begin
+                    .checked_add(size)
+                    .ok_or(ScriptError::InvalidSpliceArgument)?;
+
+                // 贴合 v0.3.19 的语义：超过输入长度时 clamp 到输入长度。
                 let begin = begin.min(input.len());
                 let end = end.min(input.len());
-                self.push(input[begin..end].to_vec())?;
+                if begin > end {
+                    return Err(ScriptError::InvalidSpliceArgument);
+                }
+                self.push(input[begin as usize..end as usize].to_vec())?;
             }
 
             //保留左侧前 size 个字节。
@@ -486,7 +485,7 @@ where
             Splice::OpLeft => {
                 self.require_stack(2)?;
                 let (size, input) = (self.pop()?, self.pop()?);
-                let size = cast_splice_arg_to_usize("size", &size, input.len())?.min(input.len());
+                let size = cast_splice_arg_to_usize(&size)?.min(input.len());
                 self.push(input[..size].to_vec())?;
             }
 
@@ -495,7 +494,7 @@ where
             Splice::OpRight => {
                 self.require_stack(2)?;
                 let (size, input) = (self.pop()?, self.pop()?);
-                let size = cast_splice_arg_to_usize("size", &size, input.len())?.min(input.len());
+                let size = cast_splice_arg_to_usize(&size)?.min(input.len());
                 self.push(input[input.len() - size..].to_vec())?;
             }
 
@@ -503,11 +502,9 @@ where
             // [in] -> [in, len(in)]
             Splice::OpSize => {
                 self.require_stack(1)?;
-                let top = self.top()?;
-
-                let len = top.len();
-                let script_num = cast_i64_to_script_num(len as i64);
-                self.push(script_num)?;
+                let top = self.top()?; //读取栈顶，不弹出
+                let len = BigNum::from_usize(top.len());
+                self.push_bignum(len)?;
             }
         }
         Ok(())
@@ -515,7 +512,6 @@ where
     // ----BitLogic-----
     fn exec_bit_logic_ops(&mut self, op: BitLogic) -> Result<(), ScriptError> {
         match op {
-
             // 逻辑-非
             BitLogic::OpInvert => {
                 self.require_stack(1)?;
@@ -573,151 +569,151 @@ where
         match op {
             // 一元运算符，取出栈顶元素，转数值，加1
             Numeric::Op1Add => {
-                let n = self.pop_script_num()?;
-                self.push_script_num(n.checked_add(1).ok_or(ScriptError::NumericOverflow)?)?;
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bignum(n.add_one())?;
             }
             // 一元运算符，取出栈顶元素，转数值，减1
             Numeric::Op1Sub => {
-                let n = self.pop_script_num()?;
-                self.push_script_num(n.checked_sub(1).ok_or(ScriptError::NumericOverflow)?)?;
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bignum(n.sub_one())?;
             }
-            // 一元运算符，取出栈顶元素，转数值，加2
+            // 一元运算符，取出栈顶元素，转数值，乘2
             Numeric::Op2Mul => {
-                let n = self.pop_script_num()?;
-                self.push_script_num(n.checked_mul(2).ok_or(ScriptError::NumericOverflow)?)?;
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bignum(n.mul_two())?;
             }
             // 一元运算，取栈顶元素，转数值，除2
             Numeric::Op2Div => {
-                let n = self.pop_script_num()?;
-                self.push_script_num(n / 2)?;
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bignum(n >> 1)?;
             }
             // 一元运算，取负数
             Numeric::OpNegate => {
-                let n = self.pop_script_num()?;
-                self.push_script_num(n.checked_neg().ok_or(ScriptError::NumericOverflow)?)?;
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bignum(n.negate())?;
             }
             // 一元运算，绝对值
             Numeric::OpAbs => {
-                let n = self.pop_script_num()?;
-                self.push_script_num(n.checked_abs().ok_or(ScriptError::NumericOverflow)?)?;
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bignum(n.abs())?;
             }
             // 一元运算，数字等于 0 输出 true，否则 false。
             Numeric::OpNot => {
-                let n = self.pop_script_num()?;
-                self.push_bool(n == 0)?;
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bool(n.is_zero())?;
             }
             // 一元运算，数字不等于 0 输出 true，否则 false
-            Numeric::OpOp0NotEqual => {
-                let n = self.pop_script_num()?;
-                self.push_bool(n != 0)?;
+            Numeric::Op0NotEqual => {
+                let n = self.pop_bignum_from_script_num()?;
+                self.push_bool(n.is_not_zero())?;
             }
             // 二元运算，left+right
             Numeric::OpAdd => {
-                let (left, right) = self.pop2_script_nums()?;
-                self.push_script_num(left.checked_add(right).ok_or(ScriptError::NumericOverflow)?)?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                self.push_bignum(left + right)?;
             }
             // 二元运算，left-right
             Numeric::OpSub => {
-                let (left, right) = self.pop2_script_nums()?;
-                self.push_script_num(left.checked_sub(right).ok_or(ScriptError::NumericOverflow)?)?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                self.push_bignum(left - right)?;
             }
             // 二元运算，left * right
             Numeric::OpMul => {
-                let (left, right) = self.pop2_script_nums()?;
-                self.push_script_num(left.checked_mul(right).ok_or(ScriptError::NumericOverflow)?)?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                self.push_bignum(left * right)?;
             }
 
             // 二元运算，left/right
             Numeric::OpDiv => {
-                let (left, right) = self.pop2_script_nums()?;
-                if right == 0 {
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                if right.is_zero() {
                     return Err(ScriptError::DivisionByZero);
                 }
-                self.push_script_num(left.checked_div(right).ok_or(ScriptError::NumericOverflow)?)?;
+                self.push_bignum(left / right)?;
             }
             // 二元运算，left % right
             Numeric::OpMod => {
-                let (left, right) = self.pop2_script_nums()?;
-                if right == 0 {
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                if right.is_zero() {
                     return Err(ScriptError::DivisionByZero);
                 }
-                self.push_script_num(left.checked_rem(right).ok_or(ScriptError::NumericOverflow)?)?;
+                self.push_bignum(left % right)?;
             }
             // 二元运算，位运算，左移，原版限制 shift 在 0..=2048
             Numeric::OpLShift => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 let shift = numeric_shift(right)?;
-                self.push_script_num(left.checked_shl(shift).ok_or(ScriptError::NumericOverflow)?)?;
+                self.push_bignum(left << shift)?;
             }
-            // 二元运算，位运算，右移动，原版限制 shift 在 0..=2048
+            // 二元运算，位运算，右移，原版限制 shift 在 0..=2048
             Numeric::OpRShift => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 let shift = numeric_shift(right)?;
-                self.push_script_num(left.checked_shr(shift).ok_or(ScriptError::NumericOverflow)?)?;
+                self.push_bignum(left >> shift)?;
             }
             // 二元运算，把两个数字按“是否非零”解释成布尔值。
             Numeric::OpBoolAnd => {
-                let (left, right) = self.pop2_script_nums()?;
-                self.push_bool(left != 0 && right != 0)?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                self.push_bool(left.to_bool() && right.to_bool())?;
             }
             // 二元运算，把两个数字按“是否非零”解释成布尔值。
             Numeric::OpBoolOr => {
-                let (left, right) = self.pop2_script_nums()?;
-                self.push_bool(left != 0 || right != 0)?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                self.push_bool(left.to_bool() || right.to_bool())?;
             }
             // 二元运算，数值相等/不相等，不是字节相等。
             Numeric::OpNumEqual => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 self.push_bool(left == right)?;
             }
-            //二元运算，数值相等则消耗两个元素且不压栈，不相等返回 VerifyFailed。
+            //二元运算，数值相等则消耗两个元素且不压栈，不相等返回错误 VerifyFailed。
             Numeric::OpNumEqualVerify => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 if left != right {
                     return Err(ScriptError::VerifyFailed);
                 }
             }
             // 二元运算，数值相等/不相等，不是字节相等。
             Numeric::OpNumNotEqual => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 self.push_bool(left != right)?;
             }
             // 二元运算，比大小 left<right
             Numeric::OpLessThan => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 self.push_bool(left < right)?;
             }
             // 二元运算，比大小 left>right
             Numeric::OpGreaterThan => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 self.push_bool(left > right)?;
             }
             // 二元运算，比大小 left <= right
             Numeric::OpLessThanOrEqual => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 self.push_bool(left <= right)?;
             }
             // 二元运算，比大小 left >= right
             Numeric::OpGreaterThanOrEqual => {
-                let (left, right) = self.pop2_script_nums()?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
                 self.push_bool(left >= right)?;
             }
             // 二元运算，取最小值
             Numeric::OpMin => {
-                let (left, right) = self.pop2_script_nums()?;
-                self.push_script_num(left.min(right))?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                self.push_bignum(left.min(right))?;
             }
             // 二元运算，取最大值
             Numeric::OpMax => {
-                let (left, right) = self.pop2_script_nums()?;
-                self.push_script_num(left.max(right))?;
+                let (left, right) = self.pop2_bignum_from_script_bytes()?;
+                self.push_bignum(left.max(right))?;
             }
             // 三元运算，判断 min <= value < max
             Numeric::OpWithin => {
                 self.require_stack(3)?;
-                let max = self.pop_script_num()?;
-                let min = self.pop_script_num()?;
-                let value = self.pop_script_num()?;
+                let max = self.pop_bignum_from_script_num()?;
+                let min = self.pop_bignum_from_script_num()?;
+                let value = self.pop_bignum_from_script_num()?;
                 self.push_bool(min <= value && value < max)?;
             }
         }
@@ -771,29 +767,30 @@ where
     /// 返回：栈顶深度，n = 0 表示剩余主栈的当前栈顶。
     fn pick_or_roll_depth(&mut self) -> Result<usize, ScriptError> {
         self.require_stack(2)?;
-        let n = cast_script_num_to_i64(&self.pop()?)?;
+        let n = self.pop_bignum_from_script_num()?;
+        let n = n.to_i64().map_err(|_| ScriptError::InvalidDataTypeCast)?;
         let len = self.stack_len();
-        if n < 0 || n as usize >= len {
+        if n >= len as i64 || n < 0 {
             return Err(ScriptError::InvalidStackIndex { index: n, len });
         }
 
         Ok(n as usize)
     }
 
-    fn pop_script_num(&mut self) -> Result<i64, ScriptError> {
+    fn pop_bignum_from_script_num(&mut self) -> Result<BigNum, ScriptError> {
         let value = self.pop()?;
-        cast_script_num_to_i64(&value)
+        cast_script_num_to_bignum(&value)
     }
 
-    fn pop2_script_nums(&mut self) -> Result<(i64, i64), ScriptError> {
+    fn pop2_bignum_from_script_bytes(&mut self) -> Result<(BigNum, BigNum), ScriptError> {
         self.require_stack(2)?;
-        let right = self.pop_script_num()?;
-        let left = self.pop_script_num()?;
+        let right = self.pop_bignum_from_script_num()?;
+        let left = self.pop_bignum_from_script_num()?;
         Ok((left, right))
     }
 
-    fn push_script_num(&mut self, value: i64) -> Result<(), ScriptError> {
-        self.push(cast_i64_to_script_num(value))
+    fn push_bignum(&mut self, value: BigNum) -> Result<(), ScriptError> {
+        self.push(cast_bignum_to_script_num(value))
     }
 
     fn push_bool(&mut self, value: bool) -> Result<(), ScriptError> {
@@ -802,36 +799,15 @@ where
 }
 
 fn is_conditional_control_op(op: Control) -> bool {
-    matches!(op,
+    matches!(
+        op,
         Control::OpIf
-        | Control::OpNotIf
-        | Control::OpElse
-        | Control::OpVerIf
-        | Control::OpVerNotIf
-        | Control::OpEndIf
+            | Control::OpNotIf
+            | Control::OpElse
+            | Control::OpVerIf
+            | Control::OpVerNotIf
+            | Control::OpEndIf
     )
-}
-
-/// 返回错误：InvalidSpliceArgument
-fn invalid_splice_arg(name: &'static str, value: i64, len: usize) -> ScriptError {
-    ScriptError::InvalidSpliceArgument { name, value, len }
-}
-
-/// 数值转化：splice_arg => usize
-fn cast_splice_arg_to_usize(
-    name: &'static str,
-    value: &[u8],
-    len: usize,
-) -> Result<usize, ScriptError> {
-    let value = cast_script_num_to_i64(value)?;
-    usize::try_from(value).map_err(|_| invalid_splice_arg(name, value, len))
-}
-
-fn numeric_shift(value: i64) -> Result<u32, ScriptError> {
-    if !(0..=2048).contains(&value) {
-        return Err(ScriptError::InvalidNumericShift { shift: value });
-    }
-    u32::try_from(value).map_err(|_| ScriptError::InvalidNumericShift { shift: value })
 }
 
 /// 对两个栈元素执行逐字节位运算。
@@ -849,104 +825,56 @@ where
     let max_len = max(left.len(), right.len());
     left.resize(max_len, 0u8);
     right.resize(max_len, 0u8);
-    left.iter().zip(right.iter()).map(|(&l, &r)| f(l, r)).collect()
+    left.iter()
+        .zip(right.iter())
+        .map(|(&l, &r)| f(l, r))
+        .collect()
 }
 
-/// 把 Rust 整数转换成 Bitcoin Script 使用的数字字节。规则：
-///
-/// 1. 0 不写成 [0]，而是写成空向量 []。
-///
-/// 2. 绝对值按小端序存储，低位字节在前。
-///
-/// 3. 最高有效字节的最高位是符号位，1 表示负数。
-///
-/// 4. 如果正数最高有效字节本身已经占用了 0x80，需要额外补一个 0x00，避免被误判为负数。
-///
-/// 实际例子：
-///
-/// | i64 | ScriptNumType |
-/// | --- | --- |
-/// | `0` | `[]` |
-/// | `1` | `[0x01]` |
-/// | `-1` | `[0x81]` |
-/// | `127` | `[0x7f]` |
-/// | `128` | `[0x80, 0x00]` |
-/// | `-128` | `[0x80, 0x80]` |
-/// | `256` | `[0x00, 0x01]` |
-fn cast_i64_to_script_num(value: i64) -> ScriptNumType {
-    if value == 0 {
-        return Vec::new();
-    }
-
-    let negative = value < 0;
-    let mut abs = value.unsigned_abs();
-    let mut result = Vec::new();
-
-    while abs > 0 {
-        result.push((abs & 0xff) as u8);
-        abs >>= 8;
-    }
-
-    let last_index = result.len() - 1;
-    if result[last_index] & 0x80 != 0 {
-        result.push(if negative { 0x80 } else { 0x00 });
-    } else if negative {
-        result[last_index] |= 0x80;
-    }
-
-    result
+fn cast_bignum_to_script_num(value: BigNum) -> ScriptNumType {
+    value.to_bytes_le()
 }
 
-/// 把 Bitcoin Script 数字字节解释成 Rust 整数。
+/// 数值转化：scriptnum -> BigNum
 ///
-/// 规则与 cast_i64_to_script_num 反向对应：
+/// 对应原版中 script.cpp CastToBigNum 函数
 ///
-/// 1. 空向量 [] 表示 0。
+/// ```cpp
+/// CBigNum CastToBigNum(const valtype& vch)
+/// {
+///     if (vch.size() > nMaxNumSize)
+///         throw runtime_error("CastToBigNum() : overflow");
+///     return CBigNum(CBigNum(vch).getvch());
+/// }
+/// ```
+/// 将脚本字节流转成BigNum符合原版比特币语义：无精度、有符号、小端序,参考`BigNum::from_bytes_le`实现
 ///
-/// 2. 字节按小端序累加，低位字节在前。
-///
-/// 3. 最后一个字节的 0x80 只表示符号，不参与绝对值计算，所以读取前要清掉该位。
-///
-/// 4. v0.3.19 中 CastToBigNum 限制普通数值最多 4 字节，我保留这个限制。
-///
-/// 实际例子：
-///
-/// | ScriptNumType | i64 |
-/// | --- | --- |
-/// | `[]` | `0` |
-/// | `[0x01]` | `1` |
-/// | `[0x81]` | `-1` |
-/// | `[0x7f]` | `127` |
-/// | `[0x80, 0x00]` | `128` |
-/// | `[0x80, 0x80]` | `-128` |
-/// | `[0x00, 0x01]` | `256` |
-fn cast_script_num_to_i64(v: &[u8]) -> Result<i64, ScriptError> {
-
-    // 字节数字的大小限制
+fn cast_script_num_to_bignum(v: &[u8]) -> Result<BigNum, ScriptError> {
     if v.len() > MAX_SCRIPT_NUM_SIZE {
         return Err(ScriptError::ScriptNumOverflow {
             max: MAX_SCRIPT_NUM_SIZE,
             actual: v.len(),
         });
     }
-    // 空数组表示0
-    if v.is_empty() {
-        return Ok(0);
+    Ok(BigNum::from_bytes_le(v))
+}
+
+/// Splice 参数最终要作为 Rust 切片下标使用，因此必须是非负且能放进 usize。
+fn cast_splice_arg_to_usize(v: &[u8]) -> Result<usize, ScriptError> {
+    let n = cast_script_num_to_bignum(v)?;
+    match n.is_negative() {
+        true => Err(ScriptError::InvalidSpliceArgument),
+        false => n.to_usize().map_err(|_| ScriptError::InvalidDataTypeCast),
     }
+}
 
-    let last_index = v.len() - 1;
-    let negative = v[last_index] & 0x80 != 0;
-    let mut value = 0i64;
-
-    for (index, byte) in v.iter().enumerate() {
-        let byte = if index == last_index { *byte & 0x7f } else { *byte };
-        value |= i64::from(byte) << (8 * index);
-    }
-
-    if negative {
-        Ok(-value)
-    } else {
-        Ok(value)
+/// 原版对 OP_LSHIFT / OP_RSHIFT 的位移量限制为 0..=2048。
+fn numeric_shift(n: BigNum) -> Result<u32, ScriptError> {
+    match n.is_negative() || n > BigNum::from_u32(2048) {
+        true => Err(ScriptError::InvalidNumericShift {
+            shift: n.to_string(),
+        }),
+        false => n.to_u32().map_err(|_| ScriptError::InvalidDataTypeCast),
     }
 }
 

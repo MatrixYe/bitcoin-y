@@ -1,6 +1,4 @@
-use bitcoin_y::script::opcode::{
-    BitLogic, Crypto, Expansion, Invalid, OpCode, PushValue, Stack,
-};
+use bitcoin_y::script::opcode::{BitLogic, Crypto, Expansion, Invalid, OpCode, PushValue, Stack};
 
 #[test]
 fn grouped_opcodes_expose_byte_and_name() {

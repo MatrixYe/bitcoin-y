@@ -45,7 +45,7 @@ fn execute_unary_numeric_ops() {
         (Numeric::OpNegate, 5, -5),
         (Numeric::OpAbs, -5, 5),
         (Numeric::OpNot, 0, 1),
-        (Numeric::OpOp0NotEqual, 7, 1),
+        (Numeric::Op0NotEqual, 7, 1),
     ];
 
     for (op, input, expected) in cases {
@@ -118,11 +118,15 @@ fn execute_num_equal_verify() {
 #[test]
 fn execute_within_numeric_op() {
     let mut interpreter = open_interpreter(vec![num(5), num(3), num(8)]);
-    interpreter.execute(&[numeric_op(Numeric::OpWithin)]).unwrap();
+    interpreter
+        .execute(&[numeric_op(Numeric::OpWithin)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![num(1)]);
 
     let mut interpreter = open_interpreter(vec![num(8), num(3), num(8)]);
-    interpreter.execute(&[numeric_op(Numeric::OpWithin)]).unwrap();
+    interpreter
+        .execute(&[numeric_op(Numeric::OpWithin)])
+        .unwrap();
     assert_eq!(interpreter.stack, vec![num(0)]);
 }
 
@@ -130,21 +134,48 @@ fn execute_within_numeric_op() {
 #[test]
 fn execute_numeric_ops_return_errors_for_invalid_arguments() {
     let mut interpreter = open_interpreter(vec![num(7), num(0)]);
-    let err = interpreter.execute(&[numeric_op(Numeric::OpDiv)]).unwrap_err();
+    let err = interpreter
+        .execute(&[numeric_op(Numeric::OpDiv)])
+        .unwrap_err();
     assert_eq!(err, ScriptError::DivisionByZero);
 
     let mut interpreter = open_interpreter(vec![num(7), num(-1)]);
     let err = interpreter
         .execute(&[numeric_op(Numeric::OpLShift)])
         .unwrap_err();
-    assert_eq!(err, ScriptError::InvalidNumericShift { shift: -1 });
+    assert_eq!(
+        err,
+        ScriptError::InvalidNumericShift {
+            shift: "-1".to_string(),
+        }
+    );
+}
+
+// 测试 BigNum 语义：运算结果可以超过 i64，但再次作为脚本数字输入时仍受 4 字节限制。
+#[test]
+fn execute_numeric_ops_support_bignum_results_then_reject_oversized_script_num_input() {
+    let mut interpreter = open_interpreter(vec![num(1), num(100)]);
+    interpreter
+        .execute(&[numeric_op(Numeric::OpLShift)])
+        .unwrap();
+
+    let mut expected = vec![0; 12];
+    expected.push(0x10);
+    assert_eq!(interpreter.stack, vec![expected]);
+
+    let err = interpreter
+        .execute(&[numeric_op(Numeric::Op1Add)])
+        .unwrap_err();
+    assert_eq!(err, ScriptError::ScriptNumOverflow { max: 4, actual: 13 });
 }
 
 // 测试规则层：默认规则禁用部分 Numeric 操作码，但 RuleOpen 会执行真实语义。
 #[test]
 fn execute_disabled_numeric_ops_are_controlled_by_rules() {
     let mut interpreter = Interpreter::with_stack(vec![num(2), num(3)]);
-    let err = interpreter.execute(&[numeric_op(Numeric::OpMul)]).unwrap_err();
+    let err = interpreter
+        .execute(&[numeric_op(Numeric::OpMul)])
+        .unwrap_err();
     assert_eq!(err, ScriptError::DisabledOpcode(Numeric::OpMul.byte()));
 
     let mut interpreter = open_interpreter(vec![num(2), num(3)]);

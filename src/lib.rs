@@ -1,3 +1,4 @@
+pub mod bignum;
 pub mod block;
 pub mod codec;
 pub mod cons;
@@ -10,4 +11,3 @@ pub mod script;
 pub mod transaction;
 pub mod uint256;
 pub mod utils;
-pub mod bignum;

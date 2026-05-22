@@ -70,12 +70,8 @@ pub enum ScriptError {
     InvalidStackIndex { index: i64, len: usize },
 
     /// 字节串截取参数非法(个人新增的)
-    #[error("invalid splice argument `{name}`: value {value}, input length {len}")]
-    InvalidSpliceArgument {
-        name: &'static str,
-        value: i64,
-        len: usize,
-    },
+    #[error("invalid splice argument")]
+    InvalidSpliceArgument,
 
     /// 脚本元素过多
     #[error("script element too large: max {max}, actual {actual}")]
@@ -117,8 +113,11 @@ pub enum ScriptError {
     #[error("division by zero")]
     DivisionByZero,
 
-    /// 非法移位参数
+    /// 非法移位参数(新加的)
     #[error("invalid numeric shift: {shift}")]
-    InvalidNumericShift { shift: i64 },
+    InvalidNumericShift { shift: String },
 
+    /// 非法的类型转化
+    #[error("Illegal data type conversion")]
+    InvalidDataTypeCast,
 }

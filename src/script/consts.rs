@@ -47,7 +47,6 @@ pub const VALIDATION_WEIGHT_PER_SIGOP_PASSED: i64 = 50;
 /// 仅用于 Tapscript，见 BIP342。
 pub const VALIDATION_WEIGHT_OFFSET: i64 = 50;
 
-
 /// 脚本中的数字允许的最大字节数
 ///  参考 v0.3.19 CastToBigNum：普通数值操作最多接受 4 字节。
 /// eg：`[u8,u8,u8,u8]`

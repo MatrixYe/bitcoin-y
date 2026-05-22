@@ -10,8 +10,8 @@ use num_bigint::{BigInt, Sign};
 use num_traits::{Signed, ToPrimitive, Zero};
 use std::fmt;
 use std::ops::{
-    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr,
-    ShrAssign, Sub, SubAssign,
+    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign,
+    Sub, SubAssign,
 };
 use thiserror::Error;
 
@@ -29,16 +29,14 @@ pub enum BigNumError {
 pub struct BigNum(BigInt);
 
 impl BigNum {
-    /// 从 Rust `i32` 构造 BigNum,对应原版 `CBigNum(int n)`
-    pub fn from_i32(value: i32) -> Self {
+    /// 从 Rust `usize` 构造 BigNum
+    pub fn from_usize(value: usize) -> Self {
         BigNum(BigInt::from(value))
     }
 
-    /// 从 Rust `i64` 构造 BigNum,对应原版 `CBigNum(int64 n)`
-    pub fn from_i64(value: i64) -> Self {
+    pub fn from_u8(value: u8) -> Self {
         BigNum(BigInt::from(value))
     }
-
     /// 从 Rust `u32` 构造 BigNum,对应原版中较小无符号整数构造函数的常用语义。
     pub fn from_u32(value: u32) -> Self {
         BigNum(BigInt::from(value))
@@ -49,8 +47,31 @@ impl BigNum {
         BigNum(BigInt::from(value))
     }
 
+    /// 从 Rust `u128` 构造 BigNum
+    pub fn from_u128(value: u128) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
+    pub fn from_i8(value: i8) -> Self {
+        BigNum(BigInt::from(value))
+    }
+    /// 从 Rust `i32` 构造 BigNum,对应原版 `CBigNum(int n)`
+    pub fn from_i32(value: i32) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
+    /// 从 Rust `i64` 构造 BigNum,对应原版 `CBigNum(int64 n)`
+    pub fn from_i64(value: i64) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
+    /// 从 Rust `i128` 构造 BigNum,对应原版
+    pub fn from_i128(value: i128) -> Self {
+        BigNum(BigInt::from(value))
+    }
+
     /// 从十六进制字符串构造 BigNum。
-    /// 使用更严格的 Rust 语义：除可选正负号、前后空白和 `0x` / `0X` 前缀外，
+    /// 和原版不一样，我使用更严格的 Rust 语义：除可选正负号、前后空白和 `0x` / `0X` 前缀外，
     /// 剩余内容必须全部是十六进制字符。
     pub fn from_hex(hex: &str) -> Result<Self, BigNumError> {
         // 空格移除
@@ -113,8 +134,8 @@ impl BigNum {
     /// - `[0x01]` -> `00000001` -> `1`
     /// - `[0x81]` -> `10000001` -> `-1`
     /// - `[0x80]` -> `10000000` -> `-0`
-    /// - `[0x80,0x80]` -> `10000000 10000000` -> `-128`
-    /// - `[0x80,0x00]` -> `10000000 00000000` -> `128`
+    /// - `[0x80,0x80]` -> `0x8080` -> `10000000 10000000` -> `-128`
+    /// - `[0x80,0x00]` -> `0x0080` -> `10000000 00000000` -> `128`
     pub fn from_bytes_le(bytes: &[u8]) -> Self {
         if bytes.is_empty() {
             return BigNum::zero();
@@ -212,6 +233,10 @@ impl BigNum {
         unimplemented!("BigNum::to_uint256 will be implemented after uint256 is finalized")
     }
 
+    pub fn to_bool(&self) -> bool {
+        !self.0.is_zero()
+    }
+
     /// 序列化 BigNum。
     ///
     /// 当前先保留 API，后续再对齐项目统一序列化规则。
@@ -231,6 +256,10 @@ impl BigNum {
         self.0.is_zero()
     }
 
+    pub fn is_not_zero(&self) -> bool {
+        !self.is_zero()
+    }
+
     /// 是否为负数,负数->true,正数/零 -> false
     pub fn is_negative(&self) -> bool {
         self.0.is_negative()
@@ -239,10 +268,6 @@ impl BigNum {
     /// 是否为正数，正数:true,负数:false
     pub fn is_positive(&self) -> bool {
         self.0.is_positive()
-    }
-    /// 获取绝对值
-    pub fn abs(&self) -> BigInt {
-        self.0.abs()
     }
 
     /// 设置为0
@@ -309,6 +334,31 @@ impl Add for BigNum {
     type Output = BigNum;
     fn add(self, rhs: Self) -> Self::Output {
         BigNum(self.0 + rhs.0)
+    }
+}
+
+impl BigNum {
+    pub fn add_one(self) -> Self {
+        self.add(BigNum::from_u32(1))
+    }
+    pub fn sub_one(self) -> Self {
+        self.sub(BigNum::from_u32(1))
+    }
+
+    pub fn mul_two(self) -> Self {
+        self.mul(BigNum::from_u32(2))
+    }
+    pub fn div_two(self) -> Self {
+        self.div(BigNum::from_u32(2))
+    }
+
+    pub fn negate(self) -> Self {
+        BigNum(-self.0)
+    }
+
+    /// 获取绝对值
+    pub fn abs(self) -> Self {
+        BigNum(self.0.abs())
     }
 }
 

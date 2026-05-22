@@ -55,7 +55,12 @@ impl fmt::Display for ScriptData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bytes { kind, bytes } => {
-                write!(f, "{kind} len={} bytes=0x{}", bytes.len(), hex::encode(bytes))
+                write!(
+                    f,
+                    "{kind} len={} bytes=0x{}",
+                    bytes.len(),
+                    hex::encode(bytes)
+                )
             }
             Self::SmallInt(n) => write!(f, "OP_SMALLINT({n})"),
         }
@@ -189,7 +194,10 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
             ScriptToken::Data(data) => {
                 match data {
                     // 直接压栈数据
-                    ScriptData::Bytes { kind: PushBytesKind::Direct(n), bytes } => {
+                    ScriptData::Bytes {
+                        kind: PushBytesKind::Direct(n),
+                        bytes,
+                    } => {
                         // 检查 n 范围和 bytes.len()
                         // 写入 n
                         // 写入 bytes
@@ -211,7 +219,10 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                         script.extend_from_slice(bytes);
                     }
                     // PushData1
-                    ScriptData::Bytes { kind: PushBytesKind::PushData1, bytes } => {
+                    ScriptData::Bytes {
+                        kind: PushBytesKind::PushData1,
+                        bytes,
+                    } => {
                         // 检查 bytes.len() <= u8::MAX
                         // 写入 OP_PUSHDATA1
                         // 写入 1 字节长度
@@ -232,7 +243,10 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                     }
 
                     //PushData2
-                    ScriptData::Bytes { kind: PushBytesKind::PushData2, bytes } => {
+                    ScriptData::Bytes {
+                        kind: PushBytesKind::PushData2,
+                        bytes,
+                    } => {
                         // 检查 bytes.len() <= u16::MAX
                         // 写入 OP_PUSHDATA2
                         // 写入 2 字节小端长度
@@ -253,7 +267,10 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                         script.extend_from_slice(bytes);
                     }
                     //PushData4
-                    ScriptData::Bytes { kind: PushBytesKind::PushData4, bytes } => {
+                    ScriptData::Bytes {
+                        kind: PushBytesKind::PushData4,
+                        bytes,
+                    } => {
                         // 检查 bytes.len() <= u32::MAX
                         // 写入 OP_PUSHDATA4
                         // 写入 4 字节小端长度
@@ -274,65 +291,63 @@ pub fn encode(instructions: &[ScriptToken]) -> Result<Vec<u8>, ScriptError> {
                         script.extend_from_slice(bytes);
                     }
                     // SmallInt(n)
-                    ScriptData::SmallInt(n) => {
-                        match n {
-                            -1 => {
-                                script.push(PushValue::Op1Negate.byte());
-                            }
-                            0 => {
-                                script.push(PushValue::Op0.byte());
-                            }
-                            1 => {
-                                script.push(PushValue::Op1.byte());
-                            }
-                            2 => {
-                                script.push(PushValue::Op2.byte());
-                            }
-                            3 => {
-                                script.push(PushValue::Op3.byte());
-                            }
-                            4 => {
-                                script.push(PushValue::Op4.byte());
-                            }
-                            5 => {
-                                script.push(PushValue::Op5.byte());
-                            }
-                            6 => {
-                                script.push(PushValue::Op6.byte());
-                            }
-                            7 => {
-                                script.push(PushValue::Op7.byte());
-                            }
-                            8 => {
-                                script.push(PushValue::Op8.byte());
-                            }
-                            9 => {
-                                script.push(PushValue::Op9.byte());
-                            }
-                            10 => {
-                                script.push(PushValue::Op10.byte());
-                            }
-                            11 => {
-                                script.push(PushValue::Op11.byte());
-                            }
-                            12 => {
-                                script.push(PushValue::Op12.byte());
-                            }
-                            13 => {
-                                script.push(PushValue::Op13.byte());
-                            }
-                            14 => {
-                                script.push(PushValue::Op14.byte());
-                            }
-                            15 => {
-                                script.push(PushValue::Op15.byte());
-                            }
-                            16 => {
-                                script.push(PushValue::Op16.byte());
-                            }
-                            _ => { return Err(ScriptError::InvalidSmallInt { n: *n }) }
+                    ScriptData::SmallInt(n) => match n {
+                        -1 => {
+                            script.push(PushValue::Op1Negate.byte());
                         }
-                    }
+                        0 => {
+                            script.push(PushValue::Op0.byte());
+                        }
+                        1 => {
+                            script.push(PushValue::Op1.byte());
+                        }
+                        2 => {
+                            script.push(PushValue::Op2.byte());
+                        }
+                        3 => {
+                            script.push(PushValue::Op3.byte());
+                        }
+                        4 => {
+                            script.push(PushValue::Op4.byte());
+                        }
+                        5 => {
+                            script.push(PushValue::Op5.byte());
+                        }
+                        6 => {
+                            script.push(PushValue::Op6.byte());
+                        }
+                        7 => {
+                            script.push(PushValue::Op7.byte());
+                        }
+                        8 => {
+                            script.push(PushValue::Op8.byte());
+                        }
+                        9 => {
+                            script.push(PushValue::Op9.byte());
+                        }
+                        10 => {
+                            script.push(PushValue::Op10.byte());
+                        }
+                        11 => {
+                            script.push(PushValue::Op11.byte());
+                        }
+                        12 => {
+                            script.push(PushValue::Op12.byte());
+                        }
+                        13 => {
+                            script.push(PushValue::Op13.byte());
+                        }
+                        14 => {
+                            script.push(PushValue::Op14.byte());
+                        }
+                        15 => {
+                            script.push(PushValue::Op15.byte());
+                        }
+                        16 => {
+                            script.push(PushValue::Op16.byte());
+                        }
+                        _ => return Err(ScriptError::InvalidSmallInt { n: *n }),
+                    },
                 }
             }
         }

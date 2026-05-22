@@ -3,8 +3,8 @@ pub mod error;
 pub mod interpreter;
 pub mod opcode;
 pub mod parser;
-pub mod verify;
 pub mod rules;
+pub mod verify;
 
 /// @Name: script
 ///
