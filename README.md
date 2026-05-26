@@ -43,12 +43,17 @@ todo
 ##### 架构设计
 
 实现一个图灵机范式的比特币脚本引擎
-
 - [x] 按照图灵范式，将数据与指令分离
 - [x] 操作码分组，区分数据压栈与其他操作
-- [x] 栈机操作流，操作码、执行层、验证层、规则层
+- [x] 独立的指令数据操作流
+- [x] 独立的stack、splice、bitlogic、numeric 计算流
+- [x] 独立的control flow
+- [x] BigNum 语义
+- [x] 必要的密码学操作1：各种哈希
+- [ ] 必要的密码学操作2：公私钥的签名与验证，等待其他上下文的完成，暂缓
 - [x] 禁用操作码抽象成为 Rule 层
-
+- [x] 独立功能的单元测试
+- [ ] 依赖上下的复杂操作 OP_CHECKSIG OP_CHECKSIGVERIFY OP_CHECKMULTISIG OP_CHECKMULTISIGVERIFY OP_CODESEPARATOR OP_CHECKSIGADD
 ##### 功能
 
 - [x] 数值操作 Direct Data Push: 0x01~0x4b 特殊字节范围
@@ -90,11 +95,11 @@ todo
 - [x] 数值计算 `NumericOp` OP_LESSTHAN / OP_GREATERTHAN / OP_LESSTHANOREQUAL / OP_GREATERTHANOREQUAL：数值比较。
 - [x] 数值计算 `NumericOp` OP_MIN / OP_MAX：取较小/较大值。
 - [x] 数值计算 `NumericOp` OP_WITHIN：判断 min <= value < max。
-- [ ] `ControlOp` 组，暂缓，很难
+- [x] 流程控制 `ControlOp` 组
 
-- [ ] 密码学操作 `Crypto`组 五哈希指令 OP_RIPEMD160 / OP_SHA1 / OP_SHA256 / OP_HASH160 / OP_HASH256
+- [x] 密码学操作 `Crypto`组 五哈希指令 OP_RIPEMD160 / OP_SHA1 / OP_SHA256 / OP_HASH160 / OP_HASH256
 - [ ] 密码学操作 `Crypto`组 签名类 OP_CODESEPARATOR / OP_CHECKSIG / OP_CHECKSIGVERIFY / OP_CHECKMULTISIG /
-  OP_CHECKMULTISIGVERIFY
+  OP_CHECKMULTISIGVERIFY 依赖上下文，等待完成
 
 ### 参考资料
 

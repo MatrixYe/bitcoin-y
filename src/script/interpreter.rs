@@ -1,6 +1,5 @@
 use crate::bignum::BigNum;
 use crate::hash::{hash160, ripemd160, sha1, sha256, sha256d};
-use crate::script::ScriptError;
 use crate::script::consts::{
     MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE,
 };
@@ -9,6 +8,7 @@ use crate::script::opcode::{
 };
 use crate::script::parser::ScriptToken;
 use crate::script::rules::{RuleV0_3_19, ScriptRules};
+use crate::script::ScriptError;
 use std::cmp::max;
 
 /// @Name: interpreter.rs
@@ -272,9 +272,9 @@ where
             OpCode::BitLogic(op) => self.exec_bit_logic_ops(op)?,
             // 完成
             OpCode::Numeric(op) => self.exec_numeric_ops(op)?,
-            // todo
+            // todo 签名相关指令待完成
             OpCode::Crypto(op) => self.exec_crypto_ops(op)?,
-            // todo
+            // 完成
             OpCode::Expansion(op) => self.exec_expansion_ops(op)?,
             // 完成
             OpCode::Invalid(op) => self.exec_invalid_ops(op)?,
