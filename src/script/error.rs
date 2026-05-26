@@ -18,6 +18,18 @@ pub enum ScriptError {
     #[error("unexpected end of script")]
     UnexpectedEndOfScript,
 
+    /// 条件控制结构不匹配
+    #[error("unbalanced conditional control flow")]
+    UnbalancedConditional,
+
+    /// 脚本结束时仍存在未关闭的条件控制块
+    #[error("unclosed conditional control flow")]
+    UnclosedConditional,
+
+    /// OP_RETURN 主动使脚本失败
+    #[error("op return")]
+    OpReturn,
+
     /// 错误的数据长度
     #[error("invalid pushdata length")]
     InvalidPushDataLength,

@@ -1,14 +1,14 @@
 use crate::bignum::BigNum;
 use crate::hash::{hash160, ripemd160, sha1, sha256, sha256d};
+use crate::script::ScriptError;
 use crate::script::consts::{
     MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE,
 };
 use crate::script::opcode::{
-    BitLogic, Control, Crypto, Expansion, Numeric, OpCode, PushValue, Splice, Stack,
+    BitLogic, Control, Crypto, Expansion, Invalid, Numeric, OpCode, PushValue, Splice, Stack,
 };
 use crate::script::parser::ScriptToken;
 use crate::script::rules::{RuleV0_3_19, ScriptRules};
-use crate::script::ScriptError;
 use std::cmp::max;
 
 /// @Name: interpreter.rs
@@ -228,7 +228,16 @@ where
             match instruction {
                 // 数据直接入栈
                 ScriptToken::Data(data) => {
-                    self.push(data.stack_bytes()?)?;
+                    let stack_bytes = data.stack_bytes()?;
+                    if stack_bytes.len() > MAX_SCRIPT_ELEMENT_SIZE {
+                        return Err(ScriptError::ElementTooLarge {
+                            max: MAX_SCRIPT_ELEMENT_SIZE,
+                            actual: stack_bytes.len(),
+                        });
+                    }
+                    if self.should_execute() {
+                        self.push(stack_bytes)?;
+                    }
                 }
                 // 操作码入栈
                 ScriptToken::Command(opcode) => {
@@ -237,10 +246,15 @@ where
                     */
                     self.count_op(*opcode)?; //计数
                     self.rules.check_disable(*opcode)?; //检查禁用
-                    self.execute_opcode(*opcode)?; //执行
+                    if self.should_execute() || is_conditional_control_op(*opcode) {
+                        self.execute_opcode(*opcode)?; //执行
+                    }
                 }
             }
             self.check_stack_size()?;
+        }
+        if !self.vf_exec.is_empty() {
+            return Err(ScriptError::UnclosedConditional);
         }
         Ok(())
     }
@@ -248,7 +262,7 @@ where
         match op_code {
             // 完成
             OpCode::Push(op) => self.execute_push_ops(op)?,
-            // todo
+            // 完成
             OpCode::Control(op) => self.exec_control_ops(op)?,
             // 完成
             OpCode::Stack(op) => self.exec_stack_ops(op)?,
@@ -263,7 +277,7 @@ where
             // todo
             OpCode::Expansion(op) => self.exec_expansion_ops(op)?,
             // 完成
-            OpCode::Invalid(op) => return Err(ScriptError::InvalidOpcode(op.byte())),
+            OpCode::Invalid(op) => self.exec_invalid_ops(op)?,
         }
         Ok(())
     }
@@ -288,15 +302,43 @@ where
     fn exec_control_ops(&mut self, op: Control) -> Result<(), ScriptError> {
         match op {
             Control::OpNop => {}
-            Control::OpVer => {}
-            Control::OpIf => {}
-            Control::OpNotIf => {}
-            Control::OpVerIf => {}
-            Control::OpVerNotIf => {}
-            Control::OpElse => {}
-            Control::OpEndIf => {}
-            Control::OpVerify => {}
-            Control::OpReturn => {}
+            Control::OpVer | Control::OpVerIf | Control::OpVerNotIf => {
+                return Err(ScriptError::ReservedOpcode(op.byte()));
+            }
+            Control::OpIf | Control::OpNotIf => {
+                let mut value = false;
+                // 只有外层条件都处于执行状态时，当前 IF 才消费栈顶条件值。
+                // 如果外层已经不执行，仍然压入 false，用于维持嵌套条件结构。
+                if self.should_execute() {
+                    value = cast_script_num_to_bool(&self.pop()?);
+                    if matches!(op, Control::OpNotIf) {
+                        value = !value;
+                    }
+                }
+                self.vf_exec.push(value);
+            }
+            Control::OpElse => {
+                let last = self
+                    .vf_exec
+                    .last_mut()
+                    .ok_or(ScriptError::UnbalancedConditional)?;
+                *last = !*last;
+            }
+            Control::OpEndIf => {
+                self.vf_exec
+                    .pop()
+                    .ok_or(ScriptError::UnbalancedConditional)?;
+            }
+            Control::OpVerify => {
+                self.require_stack(1)?;
+                match cast_script_num_to_bool(&self.top()?) {
+                    true => {
+                        self.pop()?;
+                    }
+                    false => return Err(ScriptError::VerifyFailed),
+                }
+            }
+            Control::OpReturn => return Err(ScriptError::OpReturn),
         }
         Ok(())
     }
@@ -792,9 +834,17 @@ where
             Expansion::OpNop8 => {}
             Expansion::OpNop9 => {}
             Expansion::OpNop10 => {}
-            Expansion::OpCheckSigAdd => {}
+            // OP_CHECKSIGADD 属于 Tapscript 签名语义，当前解释器还没有签名上下文。
+            Expansion::OpCheckSigAdd => return Err(ScriptError::UnsupportedScriptForm),
         }
         Ok(())
+    }
+
+    // ----Invalid-----
+    fn exec_invalid_ops(&mut self, op: Invalid) -> Result<(), ScriptError> {
+        match op {
+            Invalid::OpInvalidOpcode => Err(ScriptError::InvalidOpcode(op.byte())),
+        }
     }
 
     //-----//
@@ -843,15 +893,17 @@ where
     }
 }
 
-fn is_conditional_control_op(op: Control) -> bool {
+fn is_conditional_control_op(op: OpCode) -> bool {
     matches!(
         op,
-        Control::OpIf
-            | Control::OpNotIf
-            | Control::OpElse
-            | Control::OpVerIf
-            | Control::OpVerNotIf
-            | Control::OpEndIf
+        OpCode::Control(
+            Control::OpIf
+                | Control::OpNotIf
+                | Control::OpElse
+                | Control::OpVerIf
+                | Control::OpVerNotIf
+                | Control::OpEndIf
+        )
     )
 }
 
