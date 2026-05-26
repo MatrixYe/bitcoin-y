@@ -1,5 +1,5 @@
-use crate::script::opcode::{BitLogic, Numeric, OpCode, Splice};
 use crate::script::ScriptError;
+use crate::script::opcode::{BitLogic, Numeric, OpCode, Splice};
 
 /// @Name: rule
 ///

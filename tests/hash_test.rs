@@ -1,7 +1,6 @@
 use bitcoin_y::block::{Block, BlockHeader};
-use bitcoin_y::hash::{Hash256, hash160, sha256, sha256d};
+use bitcoin_y::hash::{Hash256, hash160, ripemd160, sha256, sha256d};
 use bitcoin_y::transaction::{OutPoint, Transaction, TxIn, TxOut};
-use bitcoin_y::utils::ripemd160;
 
 fn genesis_coinbase_transaction() -> Transaction {
     Transaction {
@@ -50,7 +49,7 @@ fn hash160_matches_known_vector() {
 fn sha256d_matches_known_vector() {
     let result = sha256d(b"abc");
     let expected = "4f8b42c22dd3729b519ba6f68d2da7cc5b2d606d05daed5ad5128cc03e6c6358";
-    assert_eq!(hex::encode(result.0), expected);
+    assert_eq!(hex::encode(result), expected);
 }
 
 #[test]

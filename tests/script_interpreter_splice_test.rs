@@ -1,9 +1,9 @@
+use bitcoin_y::script::ScriptError;
 use bitcoin_y::script::consts::MAX_SCRIPT_ELEMENT_SIZE;
 use bitcoin_y::script::interpreter::Interpreter;
 use bitcoin_y::script::opcode::{OpCode, Splice};
 use bitcoin_y::script::parser::ScriptToken;
 use bitcoin_y::script::rules::RuleOpen;
-use bitcoin_y::script::ScriptError;
 
 fn splice_op(op: Splice) -> ScriptToken {
     ScriptToken::Command(OpCode::Splice(op))

@@ -1,7 +1,7 @@
+use bitcoin_y::script::ScriptError;
 use bitcoin_y::script::interpreter::Interpreter;
 use bitcoin_y::script::opcode::{OpCode, Stack};
 use bitcoin_y::script::parser::{PushBytesKind, ScriptData, ScriptToken};
-use bitcoin_y::script::ScriptError;
 
 fn byte(value: u8) -> Vec<u8> {
     vec![value]

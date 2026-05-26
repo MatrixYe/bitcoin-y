@@ -1,8 +1,8 @@
+use bitcoin_y::script::ScriptError;
 use bitcoin_y::script::interpreter::Interpreter;
 use bitcoin_y::script::opcode::{BitLogic, OpCode};
 use bitcoin_y::script::parser::ScriptToken;
 use bitcoin_y::script::rules::RuleOpen;
-use bitcoin_y::script::ScriptError;
 
 fn bit_logic_op(op: BitLogic) -> ScriptToken {
     ScriptToken::Command(OpCode::BitLogic(op))

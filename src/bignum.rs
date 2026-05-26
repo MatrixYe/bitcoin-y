@@ -15,7 +15,6 @@ use std::ops::{
 };
 use thiserror::Error;
 
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BigNumError {
     #[error("bignum value cannot fit into {target}")]

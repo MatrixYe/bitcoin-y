@@ -1,5 +1,5 @@
 use crate::bignum::BigNum;
-use crate::hash::hash160;
+use crate::hash::{hash160, ripemd160, sha1, sha256, sha256d};
 use crate::script::consts::{
     MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE,
 };
@@ -729,23 +729,56 @@ where
         match op {
             // [in] -> [RIPEMD160(in)] 检查栈至少 1 个元素，取栈顶字节串，计算 RIPEMD160，弹出原值，压入 hash
             Crypto::OpRipemd160 => {
-                self.require_stack(1)?;
-                let data = self.pop()?;
-                let value = hash160(&data);
-                self.push(value.to_vec())?
+                let value = self.crypto_hash_unary(ripemd160)?;
+                self.push(value)?
             }
-            Crypto::OpSha1 => {}
-            Crypto::OpSha256 => {}
-            Crypto::OpHash160 => {}
-            Crypto::OpHash256 => {}
+            // [in] -> [SHA1(in)]
+            Crypto::OpSha1 => {
+                let value = self.crypto_hash_unary(sha1)?;
+                self.push(value)?
+            }
+            // [in] -> [SHA256(in)] 输出32 字节
+            Crypto::OpSha256 => {
+                let value = self.crypto_hash_unary(sha256)?;
+                self.push(value)?
+            }
+            // [in] -> [RIPEMD160(SHA256(in))] 输出20字节
+            Crypto::OpHash160 => {
+                let value = self.crypto_hash_unary(hash160)?;
+                self.push(value)?;
+            }
+            // [in] -> [SHA256(SHA256(in))]
+            Crypto::OpHash256 => {
+                let value = self.crypto_hash_unary(sha256d)?;
+                self.push(value)?
+            }
+            // 记录一个位置，后续签名校验时 scriptCode 从最近一次执行过的 code separator 后面开始
             Crypto::OpCodeSeparator => {}
+            // [sig, pubkey] -> [bool]
             Crypto::OpCheckSig => {}
+            // OP_CHECKSIG 后接 OP_VERIFY。
+            //成功：消耗签名、公钥和 true，不留下结果。
             Crypto::OpCheckSigVerify => {}
+            //[sig ...] num_of_signatures [pubkey ...] num_of_pubkeys
+            //实际上由于历史 bug，还会额外消耗一个无用元素，也就是现在常见的 multisig 前置 OP_0 dummy。v0.3.19 代码通过索引和最终 while (i-- > 0) popstack(stack) 体现了这个行为。
             Crypto::OpCheckMultiSig => {}
+            // 等价于 OP_CHECKMULTISIG 后接 OP_VERIFY
             Crypto::OpCheckMultiSigVerify => {}
         }
         Ok(())
     }
+
+    fn crypto_hash_unary<F, Out>(&mut self, f: F) -> Result<Vec<u8>, ScriptError>
+    where
+        F: FnOnce(&[u8]) -> Out,
+        Out: AsRef<[u8]>,
+    {
+        self.require_stack(1)?;
+        let data = self.pop()?;
+        let value = f(&data);
+        Ok(value.as_ref().to_vec())
+    }
+
     // ----Expansion-----
     fn exec_expansion_ops(&mut self, op: Expansion) -> Result<(), ScriptError> {
         match op {

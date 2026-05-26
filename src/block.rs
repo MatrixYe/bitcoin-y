@@ -23,7 +23,7 @@ impl BlockHeader {
     /// 计算传统 Bitcoin 区块头哈希。
     pub fn block_hash(&self) -> Hash256 {
         let head_ser = self.serialize();
-        sha256d(&head_ser)
+        sha256d(&head_ser).into()
     }
 
     /// 区块头序列化
@@ -40,12 +40,7 @@ impl Block {
 
     /// 根据交易 txid 计算默克尔根。
     pub fn merkle_root(&self) -> Hash256 {
-        let layer = self
-            .txdata
-            .iter()
-            .map(Transaction::txid)
-            .collect::<Vec<_>>();
-        // make_merkle_root(layer);
-        make_merkle_root(layer)
+        let layer = self.txdata.iter().map(|tx| tx.txid().0).collect::<Vec<_>>();
+        make_merkle_root(layer).into()
     }
 }

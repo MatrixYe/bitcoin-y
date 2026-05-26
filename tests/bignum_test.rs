@@ -7,7 +7,6 @@
 /// @Description: null
 use bitcoin_y::bignum::{BigNum, BigNumError};
 
-
 #[test]
 fn test_is_negative() {
     let cases1 = [1, 2, 4, 8, 16, 32, 64, 128];

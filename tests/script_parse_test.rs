@@ -1,6 +1,6 @@
-use bitcoin_y::script::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
-use bitcoin_y::script::parser::{decode, encode, PushBytesKind, ScriptData, ScriptToken};
 use bitcoin_y::script::ScriptError;
+use bitcoin_y::script::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
+use bitcoin_y::script::parser::{PushBytesKind, ScriptData, ScriptToken, decode, encode};
 
 fn assert_roundtrip(script: &[u8]) {
     let instructions = decode(script).expect("script should decode");

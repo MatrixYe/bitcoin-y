@@ -1,8 +1,8 @@
+use bitcoin_y::script::ScriptError;
 use bitcoin_y::script::interpreter::Interpreter;
 use bitcoin_y::script::opcode::{Numeric, OpCode};
 use bitcoin_y::script::parser::ScriptToken;
 use bitcoin_y::script::rules::RuleOpen;
-use bitcoin_y::script::ScriptError;
 
 fn numeric_op(op: Numeric) -> ScriptToken {
     ScriptToken::Command(OpCode::Numeric(op))

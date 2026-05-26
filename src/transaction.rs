@@ -53,7 +53,7 @@ impl Transaction {
 
     /// 获取交易哈希
     pub fn get_hash(&self) -> Hash256 {
-        sha256d(&self.serialize())
+        sha256d(&self.serialize()).into()
     }
 
     /// 序列化，协议参考 [bitcoin dev:reference:transactions](https://bitcoindevelopers.org/docs/reference/transactions-ref/)
