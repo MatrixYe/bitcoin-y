@@ -1,4 +1,3 @@
-
 ## Bitcoin-Y
 
 一个用于研究比特币底层原理与基础实现的 Rust 项目。
@@ -22,7 +21,8 @@
 
 ##### BigNum
 
-继承自 num_bigint::BigInt,实现其 rust 风味的语义。BigNum 表示大数，无精度，有符号，可运算，大部分用于比特币脚本中的数值计算。与 uint 256 需要区分开来，后者有精度，无符号，主要用于哈希、工作量、未压缩难度。
+继承自 num_bigint::BigInt,实现其 rust 风味的语义。BigNum 表示大数，无精度，有符号，可运算，大部分用于比特币脚本中的数值计算。与
+uint 256 需要区分开来，后者有精度，无符号，主要用于哈希、工作量、未压缩难度。
 
 - [x] 纯数值 usize,i 8,i 16,164,u 32,u 64 与 BigNum 的相互转化，`from_*` 和 `to_*`
 - [x] 字节流 `[u8]` 与 `BigNum` 的相互转化，非常重要，需要考虑小端序和原版中的正负号处理
@@ -35,7 +35,9 @@
 - [x] 一些其他特征，Default，Display 配合调试使用
 
 ##### Uint 256
+
 todo
+
 #### 脚本系统
 
 ##### 架构设计
@@ -71,24 +73,28 @@ todo
 - [x] 字符操作 `SpliceOp` 组:OpRight 右截取（语义实现，代码禁用）
 - [x] 字符操作 `SpliceOp` 组:OpSize 栈顶元素长度压栈
 
-- [ ] `NumericOp` 组，有点难，先实现一个 script_num 辅助模块
-- [ ] `NumericOp` 组:OP_1 ADD / OP_1 SUB：栈顶数字加 1 / 减 1
-- [ ] `NumericOp` 组:OP_2 MUL / OP_2 DIV 栈顶数字乘 2 / 除 2，原版用位移实现；（语义实现，代码禁用）
-- [ ] `NumericOp` 组:OP_NEGATE / OP_ABS：取负 / 取绝对值
-- [ ] `NumericOp` OP_1 ADD / OP_1 SUB：栈顶数字加 1 / 减 1
-- [ ] `NumericOp` OP_2 MUL / OP_2 DIV 栈顶数字乘 2 / 除 2，原版用位移实现；（语义实现，代码禁用）
-- [ ] `NumericOp` OP_NEGATE / OP_ABS：取负 / 取绝对值
-- [ ] `NumericOp` OP_NOT 数字等于 0 输出 true，否则 false
-- [ ] `NumericOp` OP_0 NOTEQUAL：数字不等于 0 输出 true，否则 false
-- [ ] `NumericOp` OP_ADD / OP_SUB / OP_MUL / OP_DIV / OP_MOD：二元算术，按 `[left, right] -> left op right`。
-- [ ] `NumericOp` OP_LSHIFT / OP_RSHIFT：按 right 位移 left，原版限制 shift 在 0..=2048。
-- [ ] `NumericOp` OP_BOOLAND / OP_BOOLOR：把两个数字按“是否非零”解释成布尔值。
-- [ ] `NumericOp` OP_NUMEQUAL / OP_NUMNOTEQUAL：数值相等/不相等，不是字节相等
-- [ ] `NumericOp` OP_NUMEQUALVERIFY：数值相等则消耗两个元素且不压栈，不相等返回 VerifyFailed
-- [ ] `NumericOp` OP_LESSTHAN / OP_GREATERTHAN / OP_LESSTHANOREQUAL / OP_GREATERTHANOREQUAL：数值比较。
-- [ ] `NumericOp` OP_MIN / OP_MAX：取较小/较大值。
-- [ ] `NumericOp` OP_WITHIN：判断 min <= value < max。
+- [x] 数值计算 `NumericOp` 组，有点难，先实现一个 script_num 辅助模块
+- [x] 数值计算 `NumericOp` 组:OP_1 ADD / OP_1 SUB：栈顶数字加 1 / 减 1
+- [x] 数值计算 `NumericOp` 组:OP_2 MUL / OP_2 DIV 栈顶数字乘 2 / 除 2，原版用位移实现；（语义实现，代码禁用）
+- [x] 数值计算 `NumericOp` 组:OP_NEGATE / OP_ABS：取负 / 取绝对值
+- [x] 数值计算 `NumericOp` OP_1 ADD / OP_1 SUB：栈顶数字加 1 / 减 1
+- [x] 数值计算 `NumericOp` OP_2 MUL / OP_2 DIV 栈顶数字乘 2 / 除 2，原版用位移实现；（语义实现，代码禁用）
+- [x] 数值计算 `NumericOp` OP_NEGATE / OP_ABS：取负 / 取绝对值
+- [x] 数值计算 `NumericOp` OP_NOT 数字等于 0 输出 true，否则 false
+- [x] 数值计算 `NumericOp` OP_0 NOTEQUAL：数字不等于 0 输出 true，否则 false
+- [x] 数值计算 `NumericOp` OP_ADD / OP_SUB / OP_MUL / OP_DIV / OP_MOD：二元算术，按 `[left, right] -> left op right`。
+- [x] 数值计算 `NumericOp` OP_LSHIFT / OP_RSHIFT：按 right 位移 left，原版限制 shift 在 0..=2048。
+- [x] 数值计算 `NumericOp` OP_BOOLAND / OP_BOOLOR：把两个数字按“是否非零”解释成布尔值。
+- [x] 数值计算 `NumericOp` OP_NUMEQUAL / OP_NUMNOTEQUAL：数值相等/不相等，不是字节相等
+- [x] 数值计算 `NumericOp` OP_NUMEQUALVERIFY：数值相等则消耗两个元素且不压栈，不相等返回 VerifyFailed
+- [x] 数值计算 `NumericOp` OP_LESSTHAN / OP_GREATERTHAN / OP_LESSTHANOREQUAL / OP_GREATERTHANOREQUAL：数值比较。
+- [x] 数值计算 `NumericOp` OP_MIN / OP_MAX：取较小/较大值。
+- [x] 数值计算 `NumericOp` OP_WITHIN：判断 min <= value < max。
 - [ ] `ControlOp` 组，暂缓，很难
+
+- [ ] 密码学操作 `Crypto`组 五哈希指令 OP_RIPEMD160 / OP_SHA1 / OP_SHA256 / OP_HASH160 / OP_HASH256
+- [ ] 密码学操作 `Crypto`组 签名类 OP_CODESEPARATOR / OP_CHECKSIG / OP_CHECKSIGVERIFY / OP_CHECKMULTISIG /
+  OP_CHECKMULTISIGVERIFY
 
 ### 参考资料
 
