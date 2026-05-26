@@ -1,4 +1,5 @@
 use crate::bignum::BigNum;
+use crate::hash::hash160;
 use crate::script::consts::{
     MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE,
 };
@@ -116,7 +117,7 @@ where
         }
     }
 
-    // 入栈
+    // 入栈：主栈
     fn push(&mut self, value: Vec<u8>) -> Result<(), ScriptError> {
         let le = value.len();
         if le > MAX_SCRIPT_ELEMENT_SIZE {
@@ -129,7 +130,7 @@ where
         self.stack.push(value);
         Ok(())
     }
-    // 入栈
+    // 入栈:备用栈
     fn push_alt(&mut self, value: Vec<u8>) -> Result<(), ScriptError> {
         let le = value.len();
         if le > MAX_SCRIPT_ELEMENT_SIZE {
@@ -165,7 +166,7 @@ where
         }
     }
 
-    // 把“从栈顶向下数的深度”转换成 Vec 的真实下标。index=len-1-n
+    // 把“从栈顶向下数的深度”转换成 Vec 的真实下标。index=len-(n+1)
     fn top_index(&self, n: usize) -> Result<usize, ScriptError> {
         let offset = n.checked_add(1).ok_or(ScriptError::StackUnderflow)?;
         self.stack_len()
@@ -253,9 +254,9 @@ where
             OpCode::Stack(op) => self.exec_stack_ops(op)?,
             // 完成
             OpCode::Splice(op) => self.exec_splice_ops(op)?,
-            //完成
+            // 完成
             OpCode::BitLogic(op) => self.exec_bit_logic_ops(op)?,
-            // todo
+            // 完成
             OpCode::Numeric(op) => self.exec_numeric_ops(op)?,
             // todo
             OpCode::Crypto(op) => self.exec_crypto_ops(op)?,
@@ -267,6 +268,7 @@ where
         Ok(())
     }
 
+    // ----PushValue-----
     fn execute_push_ops(&mut self, op: PushValue) -> Result<(), ScriptError> {
         match op {
             PushValue::OpReserved => Err(ScriptError::ReservedOpcode(op.byte())),
@@ -282,7 +284,7 @@ where
             }
         }
     }
-
+    // ----Control-----
     fn exec_control_ops(&mut self, op: Control) -> Result<(), ScriptError> {
         match op {
             Control::OpNop => {}
@@ -298,7 +300,7 @@ where
         }
         Ok(())
     }
-
+    // ----Stack-----
     fn exec_stack_ops(&mut self, op: Stack) -> Result<(), ScriptError> {
         // 19个opcode
         match op {
@@ -308,7 +310,7 @@ where
                 self.push_alt(value)?;
             }
 
-            //将备用栈栈顶移动到主栈
+            // 将备用栈栈顶移动到主栈
             Stack::OpFromAltStack => {
                 let value = self.pop_alt()?;
                 self.push(value)?;
@@ -449,7 +451,7 @@ where
         }
         Ok(())
     }
-
+    // ----Splice-----
     fn exec_splice_ops(&mut self, op: Splice) -> Result<(), ScriptError> {
         match op {
             //拼接两个字节串 `[x1, x2] -> [x1 || x2]`
@@ -477,7 +479,7 @@ where
                 if begin > end {
                     return Err(ScriptError::InvalidSpliceArgument);
                 }
-                self.push(input[begin as usize..end as usize].to_vec())?;
+                self.push(input[begin..end].to_vec())?;
             }
 
             //保留左侧前 size 个字节。
@@ -512,7 +514,7 @@ where
     // ----BitLogic-----
     fn exec_bit_logic_ops(&mut self, op: BitLogic) -> Result<(), ScriptError> {
         match op {
-            // 逻辑-非
+            // 逻辑：非
             BitLogic::OpInvert => {
                 self.require_stack(1)?;
                 let mut value = self.pop()?;
@@ -521,24 +523,27 @@ where
                 }
                 self.push(value)?;
             }
-            // 逻辑-与
+            // 逻辑：与
             BitLogic::OpAnd => {
                 self.require_stack(2)?;
                 let right = self.pop()?;
                 let left = self.pop()?;
                 self.push(bit_logic_binary_op(left, right, |a, b| a & b))?;
             }
+            // 逻辑:或
             BitLogic::OpOr => {
                 self.require_stack(2)?;
                 let (right, left) = (self.pop()?, self.pop()?);
 
                 self.push(bit_logic_binary_op(left, right, |a, b| a | b))?;
             }
+            //逻辑：异或
             BitLogic::OpXor => {
                 self.require_stack(2)?;
                 let (right, left) = (self.pop()?, self.pop()?);
                 self.push(bit_logic_binary_op(left, right, |a, b| a ^ b))?;
             }
+            // 逻辑：等
             BitLogic::OpEqual => {
                 self.require_stack(2)?;
                 let (right, left) = (self.pop()?, self.pop()?);
@@ -563,7 +568,7 @@ where
         }
         Ok(())
     }
-
+    // ----Numeric-----
     fn exec_numeric_ops(&mut self, op: Numeric) -> Result<(), ScriptError> {
         //原版 Numeric 分三类：一元数值运算、二元数值/比较运算、三元 OP_WITHIN
         match op {
@@ -719,10 +724,16 @@ where
         }
         Ok(())
     }
-
+    // ----Crypto-----
     fn exec_crypto_ops(&mut self, op: Crypto) -> Result<(), ScriptError> {
         match op {
-            Crypto::OpRipemd160 => {}
+            // [in] -> [RIPEMD160(in)] 检查栈至少 1 个元素，取栈顶字节串，计算 RIPEMD160，弹出原值，压入 hash
+            Crypto::OpRipemd160 => {
+                self.require_stack(1)?;
+                let data = self.pop()?;
+                let value = hash160(&data);
+                self.push(value.to_vec())?
+            }
             Crypto::OpSha1 => {}
             Crypto::OpSha256 => {}
             Crypto::OpHash160 => {}
@@ -735,7 +746,7 @@ where
         }
         Ok(())
     }
-
+    // ----Expansion-----
     fn exec_expansion_ops(&mut self, op: Expansion) -> Result<(), ScriptError> {
         match op {
             Expansion::OpNop1 => {}
@@ -778,6 +789,7 @@ where
     }
 
     fn pop_bignum_from_script_num(&mut self) -> Result<BigNum, ScriptError> {
+        self.require_stack(1)?;
         let value = self.pop()?;
         cast_script_num_to_bignum(&value)
     }
@@ -810,10 +822,10 @@ fn is_conditional_control_op(op: Control) -> bool {
     )
 }
 
-/// 对两个栈元素执行逐字节位运算。
+/// 工具函数:对两个栈元素执行逐字节位运算。
 ///
 /// 参考 v0.3.19 的 `MakeSameSize`：如果两个字节串长度不同，先把较短的一方
-/// 在尾部补 `0x00` 到相同长度，再逐字节执行 `f`。
+/// 在尾部补 `0x00` 到相同长度，再逐字节执行 `f`，此为归一化。
 ///
 /// 这里处理的是原始字节串，不是先转换成 ScriptNum 后再计算。
 /// 例如 `[0x03, 0x02, 0x01]` 和 `[0x02, 0x01]`
@@ -831,6 +843,9 @@ where
         .collect()
 }
 
+/// 数值转化: BigNum -> scriptnum
+///
+/// 调用BigNum的to_bytes_le方法，注意小端序、正负号和零的处理
 fn cast_bignum_to_script_num(value: BigNum) -> ScriptNumType {
     value.to_bytes_le()
 }
@@ -908,11 +923,15 @@ fn cast_script_num_to_bool(v: &[u8]) -> bool {
     false
 }
 
+/// 转化boo -> script num
+///
+/// true -> `[0x01]`
+///
+/// false -> `[]`
 fn cast_bool_to_script_num(value: bool) -> ScriptNumType {
     if value {
         vec![0x01]
     } else {
-        //依据原版 vchFalse(0) 是空向量，不是 [0x00]。
-        Vec::new()
+        Vec::new() //依据原版 vchFalse(0) 是空向量，不是 [0x00]。
     }
 }

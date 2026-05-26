@@ -73,7 +73,7 @@ pub enum ScriptError {
     #[error("invalid splice argument")]
     InvalidSpliceArgument,
 
-    /// 脚本元素过多
+    /// 单个脚本元素的长度过大，最大520，实际超过
     #[error("script element too large: max {max}, actual {actual}")]
     ElementTooLarge { max: usize, actual: usize },
 

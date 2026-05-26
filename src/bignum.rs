@@ -19,12 +19,13 @@ use thiserror::Error;
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BigNumError {
     #[error("bignum value cannot fit into {target}")]
-    PrimitiveOverflow { target: &'static str },
+    PrimitiveOverflow { target: &'static str }, // 转化溢出，参考i8~i128,u8~u128的数据范围
 
     #[error("invalid hex string: {0}")]
-    InvalidHex(String),
+    InvalidHex(String), // Bignum <-> Hex
 }
 
+// 原版比特币是引用opssl 的bigint库
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BigNum(BigInt);
 
@@ -37,6 +38,7 @@ impl BigNum {
     pub fn from_u8(value: u8) -> Self {
         BigNum(BigInt::from(value))
     }
+
     /// 从 Rust `u32` 构造 BigNum,对应原版中较小无符号整数构造函数的常用语义。
     pub fn from_u32(value: u32) -> Self {
         BigNum(BigInt::from(value))
@@ -52,9 +54,11 @@ impl BigNum {
         BigNum(BigInt::from(value))
     }
 
+    /// 从 Rust `i8` 构造 BigNum
     pub fn from_i8(value: i8) -> Self {
         BigNum(BigInt::from(value))
     }
+
     /// 从 Rust `i32` 构造 BigNum,对应原版 `CBigNum(int n)`
     pub fn from_i32(value: i32) -> Self {
         BigNum(BigInt::from(value))
@@ -143,9 +147,8 @@ impl BigNum {
 
         let mut bytes = bytes.to_vec();
         let last_index = bytes.len() - 1;
-        let negative = h_bit(bytes[last_index]);
-        bytes[last_index] &= 0x7f;
-
+        let negative = has_sign(bytes[last_index]); // 判断正负号
+        bytes[last_index] = remove_sign(bytes[last_index]); // 绝对值化
         let value = BigInt::from_bytes_le(Sign::Plus, &bytes);
         match negative {
             true => BigNum(-value),
@@ -169,16 +172,16 @@ impl BigNum {
         let (_, mut bytes) = self.0.abs().to_bytes_le();
         let last_index = bytes.len() - 1;
         let last_byte = &mut bytes[last_index];
-        let has_sign = h_bit(*last_byte);
+        let has_sign = has_sign(*last_byte);
 
         match (is_negative, has_sign) {
-            // 是负数，有符号标识
+            // 是负数，有符号标识 => 追加0x80
             (true, true) => bytes.push(0x80),
-            // 是负数，没有符号标识
+            // 是负数，没有符号标识 => 最高位字节的最高比特位设置为1
             (true, false) => *last_byte |= 0x80,
-            // 是正数，有符号标识
+            // 是正数，有符号标识 => 追加一个正符号
             (false, true) => bytes.push(0x00),
-            // 是正数，没有符号标识
+            // 是正数，没有符号标识 => 无需处理
             (false, false) => {}
         }
         bytes
@@ -237,16 +240,12 @@ impl BigNum {
         !self.0.is_zero()
     }
 
-    /// 序列化 BigNum。
-    ///
-    /// 当前先保留 API，后续再对齐项目统一序列化规则。
+    /// 序列化 BigNum，当前先保留 API，后续再对齐项目统一序列化规则。
     pub fn serialize(&self) -> Vec<u8> {
         unimplemented!("BigNum::serialize is not implemented yet")
     }
 
-    /// 反序列化 BigNum。
-    ///
-    /// 当前先保留 API，后续再对齐项目统一序列化规则。
+    /// 反序列化 BigNum，当前先保留 API，后续再对齐项目统一序列化规则。
     pub fn unserialize(_bytes: &[u8]) -> Self {
         unimplemented!("BigNum::unserialize is not implemented yet")
     }
@@ -256,6 +255,7 @@ impl BigNum {
         self.0.is_zero()
     }
 
+    /// 是否不为0
     pub fn is_not_zero(&self) -> bool {
         !self.is_zero()
     }
@@ -300,9 +300,22 @@ impl BigNum {
     }
 }
 
-// 工具函数：判断单字节的最高bit位是否不为0（有符号）
-fn h_bit(x: u8) -> bool {
-    x & 0x80 != 0
+/// 工具函数：判断单字节是否包含符号，即最高bit位是否不为0
+///
+/// `0001 0000` & `1000 0000` = `0000 0000` =0  => unSigned
+///
+/// `1000 1000` & `1000 0000` = `1000 0000` !=0 => Signed
+fn has_sign(x: u8) -> bool {
+    x & 0b1000_0000 != 0
+}
+
+/// 工具函数：移除单字节的符号，即最高比特位设置为0，其余比特位不变
+///
+/// `0001_0000` & `0111_1111` = `0001_0000`
+///
+/// `1000_1000` & `0111_1111` = `0000_1000`
+fn remove_sign(x: u8) -> u8 {
+    x & 0b0111_1111
 }
 
 /// 默认数值：BigNum(0)
@@ -329,6 +342,33 @@ impl fmt::Display for BigNum {
 // operator>=
 // 的实现已经跳过。
 
+impl BigNum {
+    // +1
+    pub fn add_one(self) -> Self {
+        self.add(BigNum::from_u32(1))
+    }
+    // -1
+    pub fn sub_one(self) -> Self {
+        self.sub(BigNum::from_u32(1))
+    }
+    // *2
+    pub fn mul_two(self) -> Self {
+        self.mul(BigNum::from_u32(2))
+    }
+    // /2
+    pub fn div_two(self) -> Self {
+        self.div(BigNum::from_u32(2))
+    }
+    // -x
+    pub fn negate(self) -> Self {
+        BigNum(-self.0)
+    }
+    // 获取绝对值
+    pub fn abs(self) -> Self {
+        BigNum(self.0.abs())
+    }
+}
+
 /// 算数运算: +
 impl Add for BigNum {
     type Output = BigNum;
@@ -336,32 +376,6 @@ impl Add for BigNum {
         BigNum(self.0 + rhs.0)
     }
 }
-
-impl BigNum {
-    pub fn add_one(self) -> Self {
-        self.add(BigNum::from_u32(1))
-    }
-    pub fn sub_one(self) -> Self {
-        self.sub(BigNum::from_u32(1))
-    }
-
-    pub fn mul_two(self) -> Self {
-        self.mul(BigNum::from_u32(2))
-    }
-    pub fn div_two(self) -> Self {
-        self.div(BigNum::from_u32(2))
-    }
-
-    pub fn negate(self) -> Self {
-        BigNum(-self.0)
-    }
-
-    /// 获取绝对值
-    pub fn abs(self) -> Self {
-        BigNum(self.0.abs())
-    }
-}
-
 /// 算数运算: +=
 impl AddAssign for BigNum {
     fn add_assign(&mut self, rhs: Self) {

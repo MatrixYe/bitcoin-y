@@ -151,6 +151,28 @@ fn execute_numeric_ops_return_errors_for_invalid_arguments() {
     );
 }
 
+// 测试 Numeric 操作码在弹栈前会先检查所需栈深。
+#[test]
+fn execute_numeric_ops_return_stack_underflow_when_stack_is_too_short() {
+    let mut interpreter = open_interpreter(vec![]);
+    let err = interpreter
+        .execute(&[numeric_op(Numeric::Op1Add)])
+        .unwrap_err();
+    assert_eq!(err, ScriptError::StackUnderflow);
+
+    let mut interpreter = open_interpreter(vec![num(1)]);
+    let err = interpreter
+        .execute(&[numeric_op(Numeric::OpAdd)])
+        .unwrap_err();
+    assert_eq!(err, ScriptError::StackUnderflow);
+
+    let mut interpreter = open_interpreter(vec![num(1), num(2)]);
+    let err = interpreter
+        .execute(&[numeric_op(Numeric::OpWithin)])
+        .unwrap_err();
+    assert_eq!(err, ScriptError::StackUnderflow);
+}
+
 // 测试 BigNum 语义：运算结果可以超过 i64，但再次作为脚本数字输入时仍受 4 字节限制。
 #[test]
 fn execute_numeric_ops_support_bignum_results_then_reject_oversized_script_num_input() {
