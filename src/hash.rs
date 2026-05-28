@@ -10,7 +10,6 @@ use sha2::{Digest, Sha256};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Hash256(pub [u8; 32]);
-
 impl Hash256 {
     pub const fn zero() -> Self {
         Self([0; 32])

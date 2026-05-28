@@ -1,5 +1,6 @@
 use crate::bignum::BigNum;
 use crate::hash::{hash160, ripemd160, sha1, sha256, sha256d};
+use crate::script::ScriptError;
 use crate::script::consts::{
     MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE,
 };
@@ -8,7 +9,6 @@ use crate::script::opcode::{
 };
 use crate::script::parser::ScriptToken;
 use crate::script::rules::{RuleV0_3_19, ScriptRules};
-use crate::script::ScriptError;
 use std::cmp::max;
 
 /// @Name: interpreter.rs
