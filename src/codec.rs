@@ -1,7 +1,7 @@
 use crate::block::{Block, BlockHeader};
 use crate::errors::CError;
-use crate::hash::Hash256;
 use crate::transaction::{OutPoint, Transaction, TxIn, TxOut};
+use crate::uint256::Uint256;
 
 /// @Name: codec
 ///
@@ -64,8 +64,8 @@ pub fn serialize_block_header(header: &BlockHeader) -> [u8; 80] {
 
     // 区块头字段固定长度，总计 80 字节。
     write_i32(&mut buffer, header.version);
-    buffer.extend_from_slice(&header.prev_block.0);
-    buffer.extend_from_slice(&header.merkle_root.0);
+    buffer.extend_from_slice(&header.prev_block.to_bytes());
+    buffer.extend_from_slice(&header.merkle_root.to_bytes());
     write_u32(&mut buffer, header.time);
     write_u32(&mut buffer, header.bits);
     write_u32(&mut buffer, header.nonce);
@@ -146,8 +146,8 @@ fn read_transaction(reader: &mut ByteReader<'_>) -> Result<Transaction, CError> 
 fn read_block_header(reader: &mut ByteReader<'_>) -> Result<BlockHeader, CError> {
     Ok(BlockHeader {
         version: reader.read_i32()?,
-        prev_block: Hash256(reader.read_array::<32>()?),
-        merkle_root: Hash256(reader.read_array::<32>()?),
+        prev_block: Uint256::from_bytes(reader.read_array::<32>()?),
+        merkle_root: Uint256::from_bytes(reader.read_array::<32>()?),
         time: reader.read_u32()?,
         bits: reader.read_u32()?,
         nonce: reader.read_u32()?,
@@ -157,14 +157,14 @@ fn read_block_header(reader: &mut ByteReader<'_>) -> Result<BlockHeader, CError>
 /// 从当前游标位置读取交易输出点。
 fn read_out_point(reader: &mut ByteReader<'_>) -> Result<OutPoint, CError> {
     Ok(OutPoint {
-        hash: Hash256(reader.read_array::<32>()?),
+        hash: Uint256::from_bytes(reader.read_array::<32>()?),
         n: reader.read_u32()?,
     })
 }
 
 /// 写入交易输出点。
 fn write_out_point(buffer: &mut Vec<u8>, out_point: &OutPoint) {
-    buffer.extend_from_slice(&out_point.hash.0);
+    buffer.extend_from_slice(&out_point.hash.to_bytes());
     write_u32(buffer, out_point.n);
 }
 

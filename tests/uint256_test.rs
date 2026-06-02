@@ -3,7 +3,6 @@
 // @Author: Matrix.Ye
 // @Description: Uint256 单元测试
 
-use bitcoin_y::hash::Hash256;
 use bitcoin_y::uint256::{Uint256, Uint256Error};
 
 // 测试uint256的产量

@@ -3,16 +3,16 @@
 // @Author: Matrix.Ye
 // @Description: null
 
-use crate::hash::Hash256;
 use crate::uint256::Uint256;
 
+
 /// 工作量检查
-pub fn check_proof_of_work(hash: Hash256, nbits: u32) -> bool {
+pub fn check_proof_of_work(hash: Uint256, nbits: u32) -> bool {
     let Some(target) = nbit_to_target(nbits) else {
         return false;
     };
 
-    Uint256::from(hash) <= target
+    hash <= target
 }
 
 /// 压缩目标值nbit => 目标值target

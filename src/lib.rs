@@ -10,3 +10,4 @@ pub mod pow;
 pub mod script;
 pub mod transaction;
 pub mod uint256;
+pub mod miner;

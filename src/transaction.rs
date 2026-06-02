@@ -1,23 +1,23 @@
 use crate::codec::deserialize_transaction;
 use crate::codec::serialize_transaction;
 use crate::errors::CError;
-use crate::hash::Hash256;
 use crate::hash::sha256d;
 use crate::script::Script;
+use crate::uint256::Uint256;
 
 // coinbase 输入使用的特殊输出索引 0xffff_ffff。参考源忘了，反正查过一次。
 const COINBASE_N: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct OutPoint {
-    pub hash: Hash256,
+    pub hash: Uint256,
     pub n: u32,
 }
 
 impl OutPoint {
     pub const fn null() -> Self {
         Self {
-            hash: Hash256::zero(), // coinbase pre hash
+            hash: Uint256::ZERO, // coinbase pre hash
             n: COINBASE_N,
         }
     }
@@ -47,12 +47,12 @@ pub struct Transaction {
 
 impl Transaction {
     /// 计算传统 Bitcoin txid。
-    pub fn txid(&self) -> Hash256 {
+    pub fn txid(&self) -> Uint256 {
         self.get_hash()
     }
 
     /// 获取交易哈希
-    pub fn get_hash(&self) -> Hash256 {
+    pub fn get_hash(&self) -> Uint256 {
         sha256d(&self.serialize()).into()
     }
 

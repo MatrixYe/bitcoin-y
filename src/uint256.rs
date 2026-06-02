@@ -20,7 +20,7 @@ const WORD_BITS: u32 = 32;
 /// 内部采用小端 word 序：`words[0]` 是最低有效 32 位，`words[7]` 是最高有效 32 位。
 /// 这与 Bitcoin v0.3.19 的 `base_uint<256>` / `uint256` 语义一致。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Uint256([u32; WIDTH]);
+pub struct Uint256(pub [u32; WIDTH]);
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum Uint256Error {
@@ -429,7 +429,7 @@ impl Shr<u32> for Uint256 {
         self
     }
 }
-/// >>=
+/// 位运算 >>=
 impl ShrAssign<u32> for Uint256 {
     fn shr_assign(&mut self, rhs: u32) {
         self.shr_bits_assign(rhs);

@@ -3,7 +3,6 @@ use bitcoin_y::codec::{
     deserialize_block, deserialize_block_header, deserialize_compact_size, deserialize_transaction,
     serialize_block, serialize_block_header, serialize_compact_size, serialize_transaction,
 };
-use bitcoin_y::hash::Hash256;
 use bitcoin_y::transaction::{OutPoint, Transaction, TxIn, TxOut};
 
 fn sample_transaction() -> Transaction {
