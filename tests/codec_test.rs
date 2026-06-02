@@ -4,13 +4,14 @@ use bitcoin_y::codec::{
     serialize_block, serialize_block_header, serialize_compact_size, serialize_transaction,
 };
 use bitcoin_y::transaction::{OutPoint, Transaction, TxIn, TxOut};
+use bitcoin_y::uint256::Uint256;
 
 fn sample_transaction() -> Transaction {
     Transaction {
         version: 2,
         vin: vec![TxIn {
             prevout: OutPoint {
-                hash: Hash256([1; 32]),
+                hash: Uint256([0xffu32; 8]),
                 n: 3,
             },
             script_sig: vec![0x51, 0x21, 0x02, 0xab],
@@ -83,7 +84,7 @@ fn transaction_roundtrip_matches_reference_bytes() {
     assert_eq!(hex::encode(&serialized), expected);
     assert_eq!(deserialize_transaction(&serialized).unwrap(), tx);
     assert_eq!(
-        tx.txid().to_display_hex(),
+        tx.txid().to_hex(),
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
     );
 }
@@ -92,8 +93,8 @@ fn transaction_roundtrip_matches_reference_bytes() {
 fn block_header_roundtrip_matches_reference_bytes() {
     let header = BlockHeader {
         version: 1,
-        prev_block: Hash256::zero(),
-        merkle_root: Hash256::from_display_hex(
+        prev_block: Uint256::ZERO,
+        merkle_root: Uint256::from_hex(
             "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
         )
         .unwrap(),
@@ -123,8 +124,8 @@ fn block_roundtrip_preserves_transactions() {
     let block = Block {
         header: BlockHeader {
             version: 3,
-            prev_block: Hash256([2; 32]),
-            merkle_root: Hash256([3; 32]),
+            prev_block: Uint256([0xaau32; 8]),
+            merkle_root: Uint256([0xaau32; 8]),
             time: 1_700_000_000,
             bits: 0x1d00ffff,
             nonce: 99,

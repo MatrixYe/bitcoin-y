@@ -164,8 +164,8 @@ fn test_uint256_compact_sign_bit_adjusts_size() {
 #[test]
 fn test_uint256_hash256_conversion_uses_raw_little_endian_bytes() {
     let bytes = [0x11u8; 32];
-    let hash = Hash256::from(bytes);
+    let hash = Uint256::from(bytes);
     let n = Uint256::from(hash);
-    assert_eq!(Hash256::from(n), hash);
+    assert_eq!(Uint256::from(n), hash);
     assert_eq!(n.to_bytes(), bytes);
 }
