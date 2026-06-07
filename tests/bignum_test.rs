@@ -289,3 +289,9 @@ fn test_equal() {
     assert_eq!(b, c);
     assert_eq!(c, d);
 }
+
+#[test]
+fn test_x(){
+    let a = BigNum::from_i32(0x1d00ffff);
+    println!("{}",a.to_i64().unwrap());
+}

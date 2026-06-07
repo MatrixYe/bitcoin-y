@@ -243,31 +243,34 @@ impl From<[u32; WIDTH]> for Uint256 {
     }
 }
 
+/// 类型转换: uint256 => `[u32;8]`
 impl From<Uint256> for [u32; WIDTH] {
     fn from(value: Uint256) -> Self {
         value.to_words()
     }
 }
 
+/// 类型转换: `[u8;32]` => uint256
 impl From<[u8; BYTE_LEN]> for Uint256 {
     fn from(value: [u8; BYTE_LEN]) -> Self {
         Self::from_bytes(value)
     }
 }
 
+/// 类型转换: uint256 => `[u8;32]`
 impl From<Uint256> for [u8; BYTE_LEN] {
     fn from(value: Uint256) -> Self {
         value.to_bytes()
     }
 }
-
+/// 类型转换: `u32` => uint256
 impl From<u32> for Uint256 {
     fn from(value: u32) -> Self {
         Self::from_u32(value)
     }
 }
 
-///
+/// 类型转换: u64 => uint256
 /// ```rust
 /// use bitcoin_y::uint256::Uint256;
 /// let x:u64 =99u64;
@@ -279,13 +282,14 @@ impl From<u64> for Uint256 {
     }
 }
 
-
+/// > ,< , ==, None
 impl PartialOrd for Uint256 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
+/// > ,< , ==
 impl Ord for Uint256 {
     fn cmp(&self, other: &Self) -> Ordering {
         for i in (0..WIDTH).rev() {
@@ -298,12 +302,14 @@ impl Ord for Uint256 {
     }
 }
 
+/// uint256 ==> str
 impl fmt::Display for Uint256 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.to_hex())
     }
 }
 
+/// 算术符重载:+ uin5256
 impl Add for Uint256 {
     type Output = Self;
 
@@ -313,12 +319,14 @@ impl Add for Uint256 {
     }
 }
 
+/// 算术符重载:+=
 impl AddAssign for Uint256 {
     fn add_assign(&mut self, rhs: Self) {
         self.wrapping_add_assign(rhs);
     }
 }
 
+/// 算术符重载:+ u64
 impl Add<u64> for Uint256 {
     type Output = Self;
 
@@ -327,12 +335,14 @@ impl Add<u64> for Uint256 {
     }
 }
 
+/// 算术符重载:+= u64
 impl AddAssign<u64> for Uint256 {
     fn add_assign(&mut self, rhs: u64) {
         *self += Self::from_u64(rhs);
     }
 }
 
+/// 算术符重载: -
 impl Sub for Uint256 {
     type Output = Self;
 
@@ -342,12 +352,14 @@ impl Sub for Uint256 {
     }
 }
 
+/// 算术符重载:-=
 impl SubAssign for Uint256 {
     fn sub_assign(&mut self, rhs: Self) {
         self.wrapping_sub_assign(rhs);
     }
 }
 
+/// 算术符重载: &
 impl BitAnd for Uint256 {
     type Output = Self;
 
@@ -360,12 +372,14 @@ impl BitAnd for Uint256 {
     }
 }
 
+/// 算术符重载: &=
 impl BitAndAssign for Uint256 {
     fn bitand_assign(&mut self, rhs: Self) {
         *self = *self & rhs;
     }
 }
 
+/// 算术符重载: |
 impl BitOr for Uint256 {
     type Output = Self;
 
@@ -378,12 +392,14 @@ impl BitOr for Uint256 {
     }
 }
 
+/// 算术符重载: |=
 impl BitOrAssign for Uint256 {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = *self | rhs;
     }
 }
 
+/// 算术符重载: ^
 impl BitXor for Uint256 {
     type Output = Self;
 
@@ -396,14 +412,14 @@ impl BitXor for Uint256 {
     }
 }
 
-
+/// 算术符重载: ^=
 impl BitXorAssign for Uint256 {
     fn bitxor_assign(&mut self, rhs: Self) {
         *self = *self ^ rhs;
     }
 }
 
-/// <<
+/// 算术符重载: <<
 impl Shl<u32> for Uint256 {
     type Output = Self;
 
@@ -413,14 +429,14 @@ impl Shl<u32> for Uint256 {
     }
 }
 
-/// <==
+/// 算术符重载: <<=
 impl ShlAssign<u32> for Uint256 {
     fn shl_assign(&mut self, rhs: u32) {
         self.shl_bits_assign(rhs);
     }
 }
 
-/// >>
+/// 算术符重载: >>
 impl Shr<u32> for Uint256 {
     type Output = Self;
 
@@ -429,7 +445,8 @@ impl Shr<u32> for Uint256 {
         self
     }
 }
-/// 位运算 >>=
+
+/// 算术符重载: >>=
 impl ShrAssign<u32> for Uint256 {
     fn shr_assign(&mut self, rhs: u32) {
         self.shr_bits_assign(rhs);

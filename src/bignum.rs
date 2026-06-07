@@ -15,6 +15,7 @@ use std::ops::{
 };
 use thiserror::Error;
 
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BigNumError {
     #[error("bignum value cannot fit into {target}")]
@@ -27,7 +28,9 @@ pub enum BigNumError {
 // 原版比特币是引用opssl 的bigint库
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BigNum(BigInt);
-
+impl BigNum {
+    pub const ZERO: Self = Self(BigInt::ZERO);
+}
 impl BigNum {
     /// 从 Rust `usize` 构造 BigNum
     pub fn from_usize(value: usize) -> Self {
@@ -332,7 +335,7 @@ impl fmt::Display for BigNum {
 }
 
 //------------------------运算符重载-------------------------------//
-// 算数运算符需要单独实现。
+// 算术运算符需要单独实现。
 // 比较运算符已经通过特征属性来交给编译器自动实现，无需像CPP一样手动再实现一遍。因此对于operator==
 // operator!=
 // operator<
@@ -368,21 +371,21 @@ impl BigNum {
     }
 }
 
-/// 算数运算: +
+/// 算术运算: +
 impl Add for BigNum {
     type Output = BigNum;
     fn add(self, rhs: Self) -> Self::Output {
         BigNum(self.0 + rhs.0)
     }
 }
-/// 算数运算: +=
+/// 算术运算: +=
 impl AddAssign for BigNum {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0;
     }
 }
 
-/// 算数运算: 减:-
+/// 算术运算: 减:-
 impl Sub for BigNum {
     type Output = BigNum;
     fn sub(self, rhs: Self) -> Self::Output {
@@ -390,28 +393,28 @@ impl Sub for BigNum {
     }
 }
 
-/// 算数运算: -=
+/// 算术运算: -=
 impl SubAssign for BigNum {
     fn sub_assign(&mut self, rhs: Self) {
         self.0 -= rhs.0;
     }
 }
 
-/// 算数运算: *
+/// 算术运算: *
 impl Mul for BigNum {
     type Output = BigNum;
     fn mul(self, rhs: Self) -> Self::Output {
         BigNum(self.0 * rhs.0)
     }
 }
-/// 算数运算: *=
+/// 算术运算: *=
 impl MulAssign for BigNum {
     fn mul_assign(&mut self, rhs: Self) {
         self.0 *= rhs.0;
     }
 }
 
-/// 算数运算:  /
+/// 算术运算:  /
 impl Div for BigNum {
     type Output = BigNum;
     fn div(self, rhs: Self) -> Self::Output {
@@ -419,14 +422,14 @@ impl Div for BigNum {
     }
 }
 
-/// 算数运算: /=
+/// 算术运算: /=
 impl DivAssign for BigNum {
     fn div_assign(&mut self, rhs: Self) {
         self.0 /= rhs.0;
     }
 }
 
-/// 算数运算: %
+/// 算术运算: %
 impl Rem for BigNum {
     type Output = BigNum;
     fn rem(self, rhs: Self) -> Self::Output {
@@ -434,14 +437,14 @@ impl Rem for BigNum {
     }
 }
 
-/// 算数运算: %=
+/// 算术运算: %=
 impl RemAssign for BigNum {
     fn rem_assign(&mut self, rhs: Self) {
         self.0 %= rhs.0;
     }
 }
 
-/// 算数运算: <<
+/// 位运算: <<
 impl Shl<u32> for BigNum {
     type Output = BigNum;
     fn shl(self, rhs: u32) -> Self::Output {
@@ -449,21 +452,21 @@ impl Shl<u32> for BigNum {
     }
 }
 
-/// 算数运算: <<=
+/// 位运算: <<=
 impl ShlAssign<u32> for BigNum {
     fn shl_assign(&mut self, rhs: u32) {
         self.0 <<= rhs as usize;
     }
 }
 
-/// 算数运算: >>
+/// 位运算: >>
 impl Shr<u32> for BigNum {
     type Output = BigNum;
     fn shr(self, rhs: u32) -> Self::Output {
         self.shr_like_cpp(rhs)
     }
 }
-/// 算数运算:  >>=
+/// 位运算:  >>=
 impl ShrAssign<u32> for BigNum {
     fn shr_assign(&mut self, rhs: u32) {
         *self = self.clone().shr_like_cpp(rhs);

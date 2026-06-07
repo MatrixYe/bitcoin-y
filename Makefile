@@ -9,7 +9,7 @@ test:
 	@echo "========================================"
 	@echo "运行 tests/ 目录下所有集成测试..."
 	@echo "========================================"
-	cargo test --test '*'
+	cargo test
 
 # 目标2：运行指定的单个测试文件（需传 FILE 参数，如 make test-specific FILE=integration_test）
 test-specific:

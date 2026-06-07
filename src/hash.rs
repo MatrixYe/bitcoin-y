@@ -1,7 +1,4 @@
-// Digest 提供统一哈希接口
-use crate::errors::CError;
 use crate::uint256::Uint256;
-use hex::FromHexError;
 use ripemd::Ripemd160;
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
@@ -33,10 +30,6 @@ pub fn hash160(data: &[u8]) -> [u8; 20] {
 /// 哈希计算 ripemd160：data -> ripemd160(data)
 pub fn ripemd160(data: &[u8]) -> [u8; 20] {
     Ripemd160::digest(data).into()
-}
-
-fn invalid_hash_hex(error: FromHexError) -> CError {
-    CError::Parse(format!("Invalid hash hex: {error}"))
 }
 
 /// 构建默克尔树根

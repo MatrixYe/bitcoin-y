@@ -142,6 +142,7 @@ fn test_uint256_compact() {
             0x20123456,
             "1234560000000000000000000000000000000000000000000000000000000000",
         ),
+        // (0x1d00ffff, "")
     ];
 
     for (compact, hex) in cases {
@@ -168,4 +169,13 @@ fn test_uint256_hash256_conversion_uses_raw_little_endian_bytes() {
     let n = Uint256::from(hash);
     assert_eq!(Uint256::from(n), hash);
     assert_eq!(n.to_bytes(), bytes);
+}
+
+#[test]
+fn test_nbit() {
+    let compact = 0x1d00ffff;
+    let (target, negative, overflow) = Uint256::set_compact(compact);
+    let s = target.to_hex();
+    let s2 = target.to_bytes();
+    println!("s={}, s2={:?}", s, s2);
 }
