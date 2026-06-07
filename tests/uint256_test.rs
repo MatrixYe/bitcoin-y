@@ -174,7 +174,7 @@ fn test_uint256_hash256_conversion_uses_raw_little_endian_bytes() {
 #[test]
 fn test_nbit() {
     let compact = 0x1d00ffff;
-    let (target, negative, overflow) = Uint256::set_compact(compact);
+    let (target, _, _) = Uint256::set_compact(compact);
     let s = target.to_hex();
     let s2 = target.to_bytes();
     println!("s={}, s2={:?}", s, s2);
