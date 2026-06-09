@@ -11,3 +11,4 @@ pub mod script;
 pub mod transaction;
 pub mod uint256;
 pub mod miner;
+pub mod merkle;

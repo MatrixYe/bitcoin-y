@@ -1,5 +1,6 @@
 use crate::codec::serialize_block_header;
 use crate::hash::sha256d;
+use crate::merkle::compute_merkle_root;
 use crate::transaction::Transaction;
 use crate::uint256::Uint256;
 
@@ -38,10 +39,10 @@ impl Block {
         self.header.block_hash()
     }
 
-    // 根据交易 txid 计算默克尔根。
-    // pub fn merkle_root(&self) -> Uint256 {
-    //     todo:fix it 
-    // let layer = self.txdata.iter().map(|tx| tx.txid().0).collect::<Vec<_>>();
-    // make_merkle_root(Uint256::from_words(layer)).into()
-    // }
+    /// 计算区块头的默克尔树根
+    pub fn compute_merkle_root(&self) -> Uint256 {
+        let txids: Vec<Uint256> = self.txdata.iter().map(|x| x.txid()).collect();
+        compute_merkle_root(txids)
+    }
 }
+

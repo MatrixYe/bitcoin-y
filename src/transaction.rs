@@ -73,3 +73,7 @@ impl Transaction {
         self.vin.len() == 1 && self.vin[0].prevout == OutPoint::null()
     }
 }
+/// 构造coinbase交易
+pub fn create_coinbase(height: u32) -> Transaction {
+    todo!()
+}
