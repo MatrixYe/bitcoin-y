@@ -5,6 +5,7 @@ use crate::hash::sha256d;
 use crate::script::Script;
 use crate::uint256::Uint256;
 
+// 原版语义中，coinbase的交易输入的前驱，n =-1,因为是无符号整数，所有实际为u32::MAX
 // coinbase 输入使用的特殊输出索引 0xffff_ffff。参考源忘了，反正查过一次。
 const COINBASE_N: u32 = u32::MAX;
 
@@ -15,11 +16,20 @@ pub struct OutPoint {
 }
 
 impl OutPoint {
-    pub const fn null() -> Self {
+    pub const fn set_null() -> Self {
         Self {
             hash: Uint256::ZERO, // coinbase pre hash
             n: COINBASE_N,
         }
+    }
+
+    pub fn null() -> Self {
+        Self::set_null()
+    }
+
+    //
+    pub fn is_null(&self) -> bool {
+        self.hash == Uint256::ZERO && self.n == COINBASE_N
     }
 }
 

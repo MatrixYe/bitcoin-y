@@ -31,4 +31,3 @@ pub fn ripemd160(data: &[u8]) -> [u8; 20] {
     Ripemd160::digest(data).into()
 }
 
-
