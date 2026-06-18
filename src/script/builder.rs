@@ -29,7 +29,7 @@ impl ScriptBuilder {
         Self::default()
     }
 
-    /// 使用能够表达数据长度的最短 push 编码写入字节串。
+    /// 使用能够表达数据长度的最短 push 编码写入字节串
     pub fn push_bytes(&mut self, bytes: &[u8]) -> Result<&mut Self, ScriptError> {
         let prefix_len = match bytes.len() {
             0 | 1..=0x4b => 1,
@@ -65,24 +65,24 @@ impl ScriptBuilder {
         Ok(self)
     }
 
-    /// 将 UTF-8 字符串作为普通脚本数据写入。
+    /// 将 UTF-8 字符串作为普通脚本数据写入
     pub fn push_str(&mut self, string: &str) -> Result<&mut Self, ScriptError> {
         self.push_bytes(string.as_bytes())
     }
 
-    /// 使用 Bitcoin ScriptNum 的符号-绝对值格式写入大整数。
+    /// 使用 Bitcoin ScriptNum 的符号-绝对值格式写入大整数
     pub fn push_script_num(&mut self, num: &BigNum) -> Result<&mut Self, ScriptError> {
         self.push_bytes(&num.to_bytes_le())
     }
 
-    /// 写入一个已经由类型系统验证的操作码。
+    /// 写入一个已经由类型系统验证的操作码
     pub fn push_opcode(&mut self, opcode: OpCode) -> Result<&mut Self, ScriptError> {
         self.ensure_can_append(1, 0)?;
         self.data.push(opcode.byte());
         Ok(self)
     }
 
-    /// 完成构造并移交脚本所有权。
+    /// 完成构造并移交脚本所有权
     pub fn into_script(self) -> Result<Script, ScriptError> {
         Ok(self.data)
     }
@@ -95,12 +95,14 @@ impl ScriptBuilder {
             .and_then(|len| len.checked_add(data_len))
             .unwrap_or(usize::MAX);
 
-        match actual <= MAX_SCRIPT_SIZE {
-            true => Ok(()),
-            false => Err(ScriptError::ScriptTooLarge {
+        // 最大10_000
+        if actual > MAX_SCRIPT_SIZE {
+            Err(ScriptError::ScriptTooLarge {
                 max: MAX_SCRIPT_SIZE,
                 actual,
-            }),
+            })
+        } else {
+            Ok(())
         }
     }
 }

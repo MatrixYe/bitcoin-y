@@ -5,7 +5,6 @@ use crate::merkle::compute_merkle_root;
 use crate::transaction::Transaction;
 use crate::uint256::Uint256;
 
-
 /// - version       4 字节
 /// - prev_block   32 字节
 /// - merkle_root  32 字节
@@ -44,7 +43,7 @@ impl BlockHeader {
 
 impl Block {
     /// 获取区块哈希，即区块头哈希
-    pub fn get_hash(&self) -> Uint256 {
+    pub fn hash(&self) -> Uint256 {
         self.header.block_hash()
     }
 
@@ -53,34 +52,41 @@ impl Block {
         let txids: Vec<Uint256> = self.txdata.iter().map(|x| x.txid()).collect();
         compute_merkle_root(txids)
     }
-}
 
-/// main.h
-///```cpp
-///class CBlockIndex
-/// {
-/// public:
-///     const uint256* phashBlock;
-///     CBlockIndex* pprev;
-///     CBlockIndex* pnext;
-///     unsigned int nFile;
-///     unsigned int nBlockPos;
-///     int nHeight;
-///     CBigNum bnChainWork;
-///
-///     // block header
-///     int nVersion;
-///     uint256 hashMerkleRoot;
-///     unsigned int nTime;
-///     unsigned int nBits;
-///     unsigned int nNonce;
-/// }
-/// ```
-pub struct BlockIndex {
-    pub hash: Uint256,
-    pub previous: Option<Uint256>,
-    pub height: u32,
-    pub time: u32,
-    pub bits: u32,
-    pub chain_work: BigNum,
+    /// 计算此区块的工作量
+    /// ```cpp
+    ///     CBigNum GetBlockWork() const
+    ///     {
+    ///         CBigNum bnTarget;
+    ///         bnTarget.SetCompact(nBits);
+    ///         if (bnTarget <= 0)
+    ///             return 0;
+    ///         return (CBigNum(1)<<256) / (bnTarget+1);
+    ///     }
+    /// ```
+    pub fn get_work(&self) -> BigNum {
+        let target = BigNum::set_compact(self.header.bits);
+        match target <= BigNum::zero() {
+            true => BigNum::zero(),
+            false => (BigNum::from_u32(1) << 256) / (target + BigNum::from_u32(1)),
+        }
+    }
+
+    /// 检查区块工作量是否标准
+    /// ```cpp
+    ///     uint256 hash = pblock->GetHash();
+    ///     uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+    ///
+    ///     if (hash > hashTarget)
+    ///         return false;
+    ///```
+    pub fn check_work(&self) -> bool {
+        let hash = self.hash();
+        let (target, negative, overflow) = Uint256::set_compact(self.header.bits);
+
+        match negative || overflow || target.is_zero() {
+            true => false,
+            false => hash <= target,
+        }
+    }
 }

@@ -5,7 +5,6 @@
 
 use crate::uint256::Uint256;
 
-
 /// 工作量检查
 pub fn check_proof_of_work(hash: Uint256, nbits: u32) -> bool {
     let Some(target) = nbit_to_target(nbits) else {

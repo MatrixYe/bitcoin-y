@@ -291,7 +291,7 @@ fn test_equal() {
 }
 
 #[test]
-fn test_x(){
+fn test_x() {
     let a = BigNum::from_i32(0x1d00ffff);
-    println!("{}",a.to_i64().unwrap());
+    println!("{}", a.to_i64().unwrap());
 }

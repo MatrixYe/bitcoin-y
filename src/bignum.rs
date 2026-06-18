@@ -123,12 +123,55 @@ impl BigNum {
         }
     }
 
-    /// 从 Uint256 构造 BigNum。
-    ///
-    /// 当前先保留 API，等 `uint256` 模块语义稳定后再补具体实现。
-    pub fn from_uint256(_value: Uint256) -> Self {
-        unimplemented!("BigNum::from_uint256 will be implemented after uint256 is finalized")
+    /// 从 Uint256 构造 BigNum，对应原版 `CBigNum(uint256 n)`
+    pub fn from_uint256(value: Uint256) -> Self {
+        BigNum(BigInt::from_bytes_le(Sign::Plus, &value.to_bytes()))
     }
+
+    /// 从 Bitcoin compact target / nBits 构造 BigNu
+    ///
+    /// compact 格式是一个 32 位的“科学计数法”：
+    /// - 最高 1 字节是指数，表示完整目标值的字节长度
+    /// - 低 23 bit 是尾数。
+    /// - `0x0080_0000` 是符号位，原版通过 OpenSSL MPI 编码表达
+    /// 参考 bignum.h SetCompact和GetCompact
+    /// ```cpp
+    ///     CBigNum& SetCompact(unsigned int nCompact)
+    ///     {
+    ///         unsigned int nSize = nCompact >> 24;
+    ///         std::vector<unsigned char> vch(4 + nSize);
+    ///         vch[3] = nSize;
+    ///         if (nSize >= 1) vch[4] = (nCompact >> 16) & 0xff;
+    ///         if (nSize >= 2) vch[5] = (nCompact >> 8) & 0xff;
+    ///         if (nSize >= 3) vch[6] = (nCompact >> 0) & 0xff;
+    ///         BN_mpi2bn(&vch[0], vch.size(), this);
+    ///         return *this;
+    ///     }
+    /// ```
+    pub fn set_compact(n_compact: u32) -> Self {
+        let n_size = n_compact >> 24;
+        let n_word = n_compact & 0x007f_ffff; //0000 0000 0111 1111 1111 1111 1111 1111
+
+        let mut value = BigInt::from(n_word);
+        match n_size <= 3 {
+            true => value >>= 8 * (3 - n_size),
+            false => value <<= 8 * (n_size - 3),
+        }
+
+        match n_word != 0 && (n_compact & 0x0080_0000) != 0 {
+            true => BigNum(-value),
+            false => BigNum(value),
+        }
+    }
+
+    pub fn set_compact2(nbits: u32) {
+        let size = nbits >> 24; // 取前8位，作为指数
+        let mantissa = nbits & 0x007f_ffff; //取后24位，忽略首位，作为尾数
+        let sign = nbits & 0x0080_0000; // 取尾数的符号位
+
+        let mut value = BigNum::from_u32(mantissa);
+    }
+
 
     /// 将 Bitcoin 风格的小端有符号字节流转换成 BigNum。
     ///
@@ -231,11 +274,51 @@ impl BigNum {
         self.0.to_str_radix(radix)
     }
 
-    /// 转换为 Uint256。
+    /// 转换为 Uint256，对应原版 `CBigNum::getuint256()`。
     ///
-    /// 当前先保留 API，等 `uint256` 模块语义稳定后再补具体实现。
+    /// 原版会忽略符号，并只取低 256 位；这里保持这个语义。
     pub fn to_uint256(&self) -> Uint256 {
-        unimplemented!("BigNum::to_uint256 will be implemented after uint256 is finalized")
+        let (_, bytes) = self.0.abs().to_bytes_le();
+        let mut uint_bytes = [0u8; 32];
+        let len = bytes.len().min(uint_bytes.len());
+        uint_bytes[..len].copy_from_slice(&bytes[..len]);
+        Uint256::from_bytes(uint_bytes)
+    }
+
+    /// 转换为 Bitcoin compact target / nBits。
+    ///
+    /// 这里按原版 `CBigNum::GetCompact()` 的 MPI 语义编码，负数会把符号位写入 compact。
+    pub fn get_compact(&self) -> u32 {
+        if self.is_zero() {
+            return 0;
+        }
+
+        let is_negative = self.is_negative();
+        let (_, mut bytes) = self.0.abs().to_bytes_be();
+
+        match (is_negative, has_sign(bytes[0])) {
+            // 负数且最高位已经占用，需要额外插入一个带符号字节。
+            (true, true) => bytes.insert(0, 0x80),
+            // 负数且最高位未占用，直接把首字节最高位置 1。
+            (true, false) => bytes[0] |= 0x80,
+            // 正数且最高位已经占用，需要插入 0，避免被 MPI 解释成负数。
+            (false, true) => bytes.insert(0, 0x00),
+            // 正数且最高位未占用，无需处理。
+            (false, false) => {}
+        }
+
+        let n_size = bytes.len() as u32;
+        let mut n_compact = n_size << 24;
+        if n_size >= 1 {
+            n_compact |= (bytes[0] as u32) << 16;
+        }
+        if n_size >= 2 {
+            n_compact |= (bytes[1] as u32) << 8;
+        }
+        if n_size >= 3 {
+            n_compact |= bytes[2] as u32;
+        }
+        n_compact
     }
 
     pub fn to_bool(&self) -> bool {
@@ -327,6 +410,24 @@ impl Default for BigNum {
     }
 }
 
+impl From<Uint256> for BigNum {
+    fn from(value: Uint256) -> Self {
+        Self::from_uint256(value)
+    }
+}
+
+impl From<BigNum> for Uint256 {
+    fn from(value: BigNum) -> Self {
+        value.to_uint256()
+    }
+}
+
+impl From<&BigNum> for Uint256 {
+    fn from(value: &BigNum) -> Self {
+        value.to_uint256()
+    }
+}
+
 /// rust风味的to_string,转成十进制的字符串格式
 impl fmt::Display for BigNum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -336,7 +437,8 @@ impl fmt::Display for BigNum {
 
 //------------------------运算符重载-------------------------------//
 // 算术运算符需要单独实现。
-// 比较运算符已经通过特征属性来交给编译器自动实现，无需像CPP一样手动再实现一遍。因此对于operator==
+// 比较运算符已经通过特征属性来交给编译器自动实现，无需像CPP一样手动再实现一遍。因此对于
+// operator==
 // operator!=
 // operator<
 // operator>

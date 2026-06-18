@@ -19,7 +19,8 @@
 ///   -> AddToBlockIndex()
 ///   -> SetBestChain()
 /// ```
-use crate::block::{Block, BlockHeader, BlockIndex};
+use crate::block::{Block, BlockHeader};
+use crate::chain::BlockIndex;
 use crate::transaction::{OutPoint, Transaction, TxIn, TxOut};
 use crate::uint256::Uint256;
 use thiserror::Error;
@@ -62,7 +63,7 @@ fn create_new_block() -> Result<Block, MiningError> {
     let mut block = Block {
         header: BlockHeader {
             version: 1,
-            prev_block: best_index.hash,
+            prev_block: best_index.hash(),
             merkle_root: Uint256::ZERO, //等价于Uint256::default()但语义更清晰
             time: 0,
             bits: 0,

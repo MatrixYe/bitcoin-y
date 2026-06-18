@@ -1,7 +1,7 @@
 use bitcoin_y::block::BlockHeader;
 use bitcoin_y::hash::{hash160, ripemd160, sha256, sha256d};
-use bitcoin_y::uint256::Uint256;
 use bitcoin_y::transaction::{OutPoint, Transaction, TxIn, TxOut};
+use bitcoin_y::uint256::Uint256;
 
 fn genesis_coinbase_transaction() -> Transaction {
     Transaction {
@@ -60,7 +60,7 @@ fn hash256_display_hex_roundtrip() {
     assert_eq!(hash.to_hex(), display);
     assert_eq!(hash.to_string(), display);
 }
-// 
+//
 // #[test]
 // fn genesis_coinbase_txid_matches_reference() {
 //     let tx = genesis_coinbase_transaction();
@@ -85,7 +85,7 @@ fn genesis_block_hash_matches_reference() {
         merkle_root: Uint256::from_hex(
             "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
         )
-            .unwrap(),
+        .unwrap(),
         time: 1231006505,
         bits: 0x1d00ffff,
         nonce: 2083236893,

@@ -1,14 +1,15 @@
 pub mod bignum;
 pub mod block;
+pub mod chain;
 pub mod codec;
 pub mod cons;
 pub mod db;
 pub mod errors;
 pub mod hash;
 pub mod key;
+pub mod merkle;
+pub mod miner;
 pub mod pow;
 pub mod script;
 pub mod transaction;
 pub mod uint256;
-pub mod miner;
-pub mod merkle;
