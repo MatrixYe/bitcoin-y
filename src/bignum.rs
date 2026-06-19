@@ -7,7 +7,7 @@
 /// @Description: null
 use crate::uint256::Uint256;
 use num_bigint::{BigInt, Sign};
-use num_traits::{Signed, ToPrimitive, Zero};
+use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 use std::fmt;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign,
@@ -128,48 +128,28 @@ impl BigNum {
         BigNum(BigInt::from_bytes_le(Sign::Plus, &value.to_bytes()))
     }
 
-    /// 从 Bitcoin compact target / nBits 构造 BigNu
-    ///
-    /// compact 格式是一个 32 位的“科学计数法”：
-    /// - 最高 1 字节是指数，表示完整目标值的字节长度
-    /// - 低 23 bit 是尾数。
-    /// - `0x0080_0000` 是符号位，原版通过 OpenSSL MPI 编码表达
-    /// 参考 bignum.h SetCompact和GetCompact
-    /// ```cpp
-    ///     CBigNum& SetCompact(unsigned int nCompact)
-    ///     {
-    ///         unsigned int nSize = nCompact >> 24;
-    ///         std::vector<unsigned char> vch(4 + nSize);
-    ///         vch[3] = nSize;
-    ///         if (nSize >= 1) vch[4] = (nCompact >> 16) & 0xff;
-    ///         if (nSize >= 2) vch[5] = (nCompact >> 8) & 0xff;
-    ///         if (nSize >= 3) vch[6] = (nCompact >> 0) & 0xff;
-    ///         BN_mpi2bn(&vch[0], vch.size(), this);
-    ///         return *this;
-    ///     }
-    /// ```
-    pub fn set_compact(n_compact: u32) -> Self {
-        let n_size = n_compact >> 24;
-        let n_word = n_compact & 0x007f_ffff; //0000 0000 0111 1111 1111 1111 1111 1111
+    /// nbits => bnTarget
+    pub fn set_compact(nbits: u32) -> Self {
+        // 取前8位，作为指数
+        let size = nbits >> 24;
+        //取后24位，忽略首位，作为尾数
+        let mantissa = nbits & 0x007f_ffff;
+        // 从尾数中截取首位作为符号位，等价于nbits & 0b0000_0000_1000_0000_0000_0000_0000
+        let sign = nbits & 0x0080_0000 != 0;
 
-        let mut value = BigInt::from(n_word);
-        match n_size <= 3 {
-            true => value >>= 8 * (3 - n_size),
-            false => value <<= 8 * (n_size - 3),
+        // 尾值
+        let mut value = BigInt::from(mantissa);
+
+        // 求值
+        match size <= 3 {
+            true => value >>= 8 * (3 - size),
+            false => value <<= 8 * (size - 3),
         }
-
-        match n_word != 0 && (n_compact & 0x0080_0000) != 0 {
+        // 正负号
+        match sign & (mantissa != 0) {
             true => BigNum(-value),
             false => BigNum(value),
         }
-    }
-
-    pub fn set_compact2(nbits: u32) {
-        let size = nbits >> 24; // 取前8位，作为指数
-        let mantissa = nbits & 0x007f_ffff; //取后24位，忽略首位，作为尾数
-        let sign = nbits & 0x0080_0000; // 取尾数的符号位
-
-        let mut value = BigNum::from_u32(mantissa);
     }
 
 
@@ -274,9 +254,9 @@ impl BigNum {
         self.0.to_str_radix(radix)
     }
 
-    /// 转换为 Uint256，对应原版 `CBigNum::getuint256()`。
+    /// 转换为 Uint256，对应原版 `CBigNum::getuint256()`
     ///
-    /// 原版会忽略符号，并只取低 256 位；这里保持这个语义。
+    /// 原版会忽略符号，并只取低 256 位；这里保持这个语义
     pub fn to_uint256(&self) -> Uint256 {
         let (_, bytes) = self.0.abs().to_bytes_le();
         let mut uint_bytes = [0u8; 32];
@@ -285,7 +265,7 @@ impl BigNum {
         Uint256::from_bytes(uint_bytes)
     }
 
-    /// 转换为 Bitcoin compact target / nBits。
+    /// bnTarget => nbits
     ///
     /// 这里按原版 `CBigNum::GetCompact()` 的 MPI 语义编码，负数会把符号位写入 compact。
     pub fn get_compact(&self) -> u32 {
@@ -297,13 +277,13 @@ impl BigNum {
         let (_, mut bytes) = self.0.abs().to_bytes_be();
 
         match (is_negative, has_sign(bytes[0])) {
-            // 负数且最高位已经占用，需要额外插入一个带符号字节。
+            // 负数且最高位已经占用，需要额外插入一个带符号字节
             (true, true) => bytes.insert(0, 0x80),
-            // 负数且最高位未占用，直接把首字节最高位置 1。
+            // 负数且最高位未占用，直接把首字节最高位置 1
             (true, false) => bytes[0] |= 0x80,
-            // 正数且最高位已经占用，需要插入 0，避免被 MPI 解释成负数。
+            // 正数且最高位已经占用，需要插入 0，避免被 MPI 解释成负数
             (false, true) => bytes.insert(0, 0x00),
-            // 正数且最高位未占用，无需处理。
+            // 正数且最高位未占用，无需处理
             (false, false) => {}
         }
 

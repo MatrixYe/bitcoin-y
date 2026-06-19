@@ -32,17 +32,25 @@ impl Uint256 {
     pub const ZERO: Self = Self([0; WIDTH]);
     pub const ONE: Self = Self([1, 0, 0, 0, 0, 0, 0, 0]);
     pub const MAX: Self = Self([u32::MAX; WIDTH]);
+}
 
+impl Uint256 {
     /// 从小端 word 数组构造，`words[0]` 是最低有效 word。
-    pub const fn from_words(words: [u32; WIDTH]) -> Self {
+    pub fn from_words(words: [u32; WIDTH]) -> Self {
         Self(words)
     }
+    // const fn constant() -> String {
+    //
+    //     let mut s = "hello".to_string();
+    //     s =s.to_uppercase();
+    //     s
+    // }
 
-    pub const fn from_u32(value: u32) -> Self {
+    pub fn from_u32(value: u32) -> Self {
         Self([value, 0, 0, 0, 0, 0, 0, 0])
     }
 
-    pub const fn from_u64(value: u64) -> Self {
+    pub fn from_u64(value: u64) -> Self {
         //0xaaaa_bbbb_cccc_dddd
         //[0xaaaa_bbbb,0xcccc_dddd,0,0,0,0,0,0,0]
         Self([value as u32, (value >> WORD_BITS) as u32, 0, 0, 0, 0, 0, 0])
@@ -92,11 +100,6 @@ impl Uint256 {
         self.0
     }
 
-    /// 兼容旧 API：返回内部小端 word 数组。
-    pub const fn words(&self) -> [u32; WIDTH] {
-        self.0
-    }
-
     /// 转换为 32 字节小端序。//todo
     pub fn to_bytes(self) -> [u8; BYTE_LEN] {
         let mut bytes = [0u8; BYTE_LEN];
@@ -142,23 +145,27 @@ impl Uint256 {
     }
 
     /// 从 Bitcoin compact target / nBits 构造，返回 `(target, negative, overflow)`。
-    pub fn set_compact(n_compact: u32) -> (Self, bool, bool) {
-        let n_size = n_compact >> 24;
-        let n_word = n_compact & 0x007f_ffff;
+    pub fn set_compact(nbits: u32) -> (Self, bool, bool) {
+        // 前8位 为指数
+        let n_size = nbits >> 24;
+        // 后24位 为尾数，忽略符号位
+        let mantissa = nbits & 0x007f_ffff;
+        // 尾数的首位为符号位置
+        let sign = nbits & 0x0080_0000 != 0;
 
         let result = match n_size <= 3 {
-            true => Self::from_u32(n_word >> (8 * (3 - n_size))),
-            false => Self::from_u32(n_word) << (8 * (n_size - 3)),
+            true => Self::from_u32(mantissa >> (8 * (3 - n_size))),
+            false => Self::from_u32(mantissa) << (8 * (n_size - 3)),
         };
 
-        let negative = n_word != 0 && (n_compact & 0x0080_0000) != 0;
-        let overflow = n_word != 0
-            && (n_size > 34 || (n_word > 0xff && n_size > 33) || (n_word > 0xffff && n_size > 32));
+        let negative = mantissa != 0 && sign;
+        let overflow = mantissa != 0
+            && (n_size > 34 || (mantissa > 0xff && n_size > 33) || (mantissa > 0xffff && n_size > 32));
 
         (result, negative, overflow)
     }
 
-    /// 转换为 Bitcoin compact target / nBits。
+    /// 转换为 Bitcoin compact target / nBits
     pub fn get_compact(self, negative: bool) -> u32 {
         let mut n_size = self.bits().div_ceil(8);
         let mut n_compact = match n_size <= 3 {
