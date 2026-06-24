@@ -8,6 +8,8 @@ pub const MAX_BLOCK_SIZE: usize = 1024 * 1024;
 
 /// 1 BTC = 100,000,000 聪。
 pub const COIN: u64 = 100_000_000;
+//static const int64 COIN = 100000000;
+
 
 /// coinbase 输出需要 100 个区块成熟。
 pub const COINBASE_MATURITY: usize = 100;

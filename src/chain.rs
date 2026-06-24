@@ -31,11 +31,15 @@ use crate::uint256::Uint256;
 ///      unsigned int nNonce;}
 /// ```
 pub struct BlockIndex {
+    // 哈希
     hash: Uint256,
+    // 双向链表
     pub prev: Option<Uint256>,
     pub next: Option<Uint256>,
     pub height: u32,
-    pub chain_work: BigNum,
+    pub chain_work: BigNum, // 核心数据:累计工作量
+    // todo: 可能需要补充本地存储信息
+
     // block header
     pub version: i32,
     pub prev_block: Uint256,
@@ -44,8 +48,29 @@ pub struct BlockIndex {
     pub bits: u32,
     pub nonce: u32,
 }
+
 impl BlockIndex {
     pub fn hash(&self) -> Uint256 {
         self.hash
+    }
+
+    pub fn get_work(&self) -> BigNum {
+        let bn_target = BigNum::set_compact(self.bits);
+        if bn_target <= BigNum::zero() {
+            BigNum::ZERO
+        } else {
+            let a = BigNum::from_u32(1) << 256;
+            let b = bn_target + BigNum::from_u32(1);
+            a / b
+        }
+    }
+
+    pub fn check_work(&self) -> bool {
+        let bn_target = BigNum::set_compact(self.bits);
+        if bn_target <= BigNum::zero() {
+            false
+        } else {
+            self.hash <= bn_target.to_uint256()
+        }
     }
 }

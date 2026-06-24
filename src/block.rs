@@ -12,6 +12,25 @@ use crate::uint256::Uint256;
 /// - bits          4 字节
 /// - nonce         4 字节
 
+///```cpp
+/// class CBlock
+/// {
+/// public:
+/// // header
+/// int nVersion;
+/// uint256 hashPrevBlock;
+/// uint256 hashMerkleRoot;
+/// unsigned int nTime;
+/// unsigned int nBits;
+/// unsigned int nNonce;
+///
+/// // network and disk
+/// vector<CTransaction> vtx;
+///
+/// // memory only
+/// mutable vector<uint256> vMerkleTree;
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BlockHeader {
     pub version: i32,
@@ -28,9 +47,61 @@ pub struct Block {
     pub txdata: Vec<Transaction>,
 }
 
+impl Block {
+    pub fn new() -> Block {
+        Block {
+            header: BlockHeader::new(),
+            txdata: Vec::new(),
+        }
+    }
+
+    pub fn set_version(&mut self, version: i32) {
+        self.header.version = version;
+    }
+    pub fn set_prev_block(&mut self, prev_block: Uint256) {
+        self.header.prev_block = prev_block;
+    }
+    pub fn set_merkle_root(&mut self, merkle_root: Uint256) {
+        self.header.merkle_root = merkle_root;
+    }
+    pub fn set_time(&mut self, time: u32) {
+        self.header.time = time;
+    }
+    pub fn set_bits(&mut self, bits: u32) {
+        self.header.bits = bits;
+    }
+    pub fn set_nonce(&mut self, nonce: u32) {
+        self.header.nonce = nonce;
+    }
+    // 添加一笔交易
+    pub fn push_tx(&mut self, tx: Transaction) {
+        self.txdata.push(tx);
+    }
+    // 添加多笔交易
+    pub fn push_txs(&mut self, txs: Vec<Transaction>) {
+        self.txdata.extend_from_slice(&txs);
+    }
+    // 更新区块的coinbase 金额
+    pub fn update_coinbase_value(&mut self, value: u64) {
+        self.txdata[0].vout[0].value = value;
+    }
+}
+
+
 impl BlockHeader {
+    pub fn new() -> Self {
+        BlockHeader {
+            version: 1,
+            prev_block: Uint256::ZERO,
+            merkle_root: Uint256::ZERO,
+            time: 0,
+            bits: 0,
+            nonce: 0,
+        }
+    }
+
     /// 计算传统 Bitcoin 区块头哈希。
-    pub fn block_hash(&self) -> Uint256 {
+    pub fn hash(&self) -> Uint256 {
         let head_ser = self.serialize();
         sha256d(&head_ser).into()
     }
@@ -44,16 +115,16 @@ impl BlockHeader {
 impl Block {
     /// 获取区块哈希，即区块头哈希
     pub fn hash(&self) -> Uint256 {
-        self.header.block_hash()
+        self.header.hash()
     }
 
     /// 计算区块头的默克尔树根
-    pub fn compute_merkle_root(&self) -> Uint256 {
+    pub fn build_merkle_root(&self) -> Uint256 {
         let txids: Vec<Uint256> = self.txdata.iter().map(|x| x.txid()).collect();
         compute_merkle_root(txids)
     }
 
-    /// 计算此区块的工作量
+    /// 计算此区块的工作量 `(CBigNum(1)<<256) / (bnTarget+1)`
     /// ```cpp
     ///     CBigNum GetBlockWork() const
     ///     {
@@ -82,8 +153,8 @@ impl Block {
     ///```
     pub fn check_work(&self) -> bool {
         let hash = self.hash();
+        // let target = BigNum::set_compact(self.header.bits);
         let (target, negative, overflow) = Uint256::set_compact(self.header.bits);
-
         match negative || overflow || target.is_zero() {
             true => false,
             false => hash <= target,

@@ -131,7 +131,7 @@ impl BigNum {
     /// nbits => bnTarget
     pub fn set_compact(nbits: u32) -> Self {
         // 取前8位，作为指数
-        let size = nbits >> 24;
+        let exponent = nbits >> 24;
         //取后24位，忽略首位，作为尾数
         let mantissa = nbits & 0x007f_ffff;
         // 从尾数中截取首位作为符号位，等价于nbits & 0b0000_0000_1000_0000_0000_0000_0000
@@ -141,9 +141,9 @@ impl BigNum {
         let mut value = BigInt::from(mantissa);
 
         // 求值
-        match size <= 3 {
-            true => value >>= 8 * (3 - size),
-            false => value <<= 8 * (size - 3),
+        match exponent <= 3 {
+            true => value >>= 8 * (3 - exponent),
+            false => value <<= 8 * (exponent - 3),
         }
         // 正负号
         match sign & (mantissa != 0) {

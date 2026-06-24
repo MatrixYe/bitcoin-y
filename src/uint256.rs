@@ -147,20 +147,20 @@ impl Uint256 {
     /// 从 Bitcoin compact target / nBits 构造，返回 `(target, negative, overflow)`。
     pub fn set_compact(nbits: u32) -> (Self, bool, bool) {
         // 前8位 为指数
-        let n_size = nbits >> 24;
+        let exponent = nbits >> 24;
         // 后24位 为尾数，忽略符号位
         let mantissa = nbits & 0x007f_ffff;
         // 尾数的首位为符号位置
         let sign = nbits & 0x0080_0000 != 0;
 
-        let result = match n_size <= 3 {
-            true => Self::from_u32(mantissa >> (8 * (3 - n_size))),
-            false => Self::from_u32(mantissa) << (8 * (n_size - 3)),
+        let result = match exponent <= 3 {
+            true => Self::from_u32(mantissa >> (8 * (3 - exponent))),
+            false => Self::from_u32(mantissa) << (8 * (exponent - 3)),
         };
 
         let negative = mantissa != 0 && sign;
         let overflow = mantissa != 0
-            && (n_size > 34 || (mantissa > 0xff && n_size > 33) || (mantissa > 0xffff && n_size > 32));
+            && (exponent > 34 || (mantissa > 0xff && exponent > 33) || (mantissa > 0xffff && exponent > 32));
 
         (result, negative, overflow)
     }
