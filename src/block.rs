@@ -87,7 +87,6 @@ impl Block {
     }
 }
 
-
 impl BlockHeader {
     pub fn new() -> Self {
         BlockHeader {

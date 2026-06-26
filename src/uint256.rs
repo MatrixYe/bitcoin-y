@@ -153,16 +153,18 @@ impl Uint256 {
         // 尾数的首位为符号位置
         let sign = nbits & 0x0080_0000 != 0;
 
-        let result = match exponent <= 3 {
+        let target = match exponent <= 3 {
             true => Self::from_u32(mantissa >> (8 * (3 - exponent))),
             false => Self::from_u32(mantissa) << (8 * (exponent - 3)),
         };
 
         let negative = mantissa != 0 && sign;
         let overflow = mantissa != 0
-            && (exponent > 34 || (mantissa > 0xff && exponent > 33) || (mantissa > 0xffff && exponent > 32));
+            && (exponent > 34
+                || (mantissa > 0xff && exponent > 33)
+                || (mantissa > 0xffff && exponent > 32));
 
-        (result, negative, overflow)
+        (target, negative, overflow)
     }
 
     /// 转换为 Bitcoin compact target / nBits

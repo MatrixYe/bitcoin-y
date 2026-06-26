@@ -6,7 +6,7 @@ use crate::script::Script;
 use crate::uint256::Uint256;
 
 // 原版语义中，coinbase的交易输入的前驱，n =-1,因为是无符号整数，所有实际为u32::MAX
-// coinbase 输入使用的特殊输出索引 0xffff_ffff。参考源忘了，反正查过一次。
+// coinbase 输入使用的特殊输出索引 0xffff_ffff。反正不是0，参考源忘了，记得查过一次。
 const COINBASE_N: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -16,6 +16,11 @@ pub struct OutPoint {
 }
 
 impl OutPoint {
+    pub const NULL: Self = Self {
+        hash: Uint256::ZERO, // coinbase pre hash
+        n: COINBASE_N,
+    };
+
     pub const fn set_null() -> Self {
         Self {
             hash: Uint256::ZERO, // coinbase pre hash
@@ -27,7 +32,6 @@ impl OutPoint {
         Self::set_null()
     }
 
-    //
     pub fn is_null(&self) -> bool {
         self.hash == Uint256::ZERO && self.n == COINBASE_N
     }
@@ -82,8 +86,4 @@ impl Transaction {
     pub fn is_coinbase(&self) -> bool {
         self.vin.len() == 1 && self.vin[0].prevout == OutPoint::null()
     }
-}
-/// 构造coinbase交易
-pub fn create_coinbase(height: u32) -> Transaction {
-    todo!()
 }

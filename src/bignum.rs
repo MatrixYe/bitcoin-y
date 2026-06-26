@@ -15,7 +15,6 @@ use std::ops::{
 };
 use thiserror::Error;
 
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BigNumError {
     #[error("bignum value cannot fit into {target}")]
@@ -151,7 +150,6 @@ impl BigNum {
             false => BigNum(value),
         }
     }
-
 
     /// 将 Bitcoin 风格的小端有符号字节流转换成 BigNum。
     ///

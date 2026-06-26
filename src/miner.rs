@@ -25,7 +25,6 @@ use crate::cons::COIN;
 use crate::transaction::{OutPoint, Transaction, TxIn, TxOut};
 use thiserror::Error;
 
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MiningError {
     #[error("unknown block index")]
@@ -55,16 +54,9 @@ pub fn bitcoin_miner(f_generate_bitcoins: bool) -> Result<(), MiningError> {
 
     // 统计区块价值，更新coinbase金额
     let block_value = total_fees + block_subsidy;
-    pblock.update_coinbase_value(block_value);
 
-    // 初始化区块头数据
-    //    // Fill in header
-    //     pblock->hashPrevBlock = pindexPrev->GetBlockHash();
-    //     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-    //     pblock->nTime = max(pindexPrev->GetMedianTimePast() + 1, GetAdjustedTime());
-    //     pblock->nBits = GetNextWorkRequired(pindexPrev);
-    //     pblock->nNonce = 0;
-    pblock.set_prev_block(best_index.hash());
+    pblock.update_coinbase_value(block_value);
+    // pblock.set_prev_block(best_index.hash());
     pblock.set_merkle_root(pblock.build_merkle_root());
     pblock.set_time(0); //todo
     pblock.set_bits(0); //todo
@@ -74,7 +66,6 @@ pub fn bitcoin_miner(f_generate_bitcoins: bool) -> Result<(), MiningError> {
     pblock.set_nonce(nonce);
     Ok(())
 }
-
 
 /// ```cpp
 /// int64 GetBlockValue(int nHeight, int64 nFees) {
@@ -108,7 +99,6 @@ fn get_best_index() -> Result<BlockIndex, MiningError> {
 fn increment_extra_nonce() {
     unimplemented!();
 }
-
 
 ///   // 创建coinbase交易
 ///
