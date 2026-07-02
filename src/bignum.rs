@@ -15,6 +15,7 @@ use std::ops::{
 };
 use thiserror::Error;
 
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BigNumError {
     #[error("bignum value cannot fit into {target}")]
@@ -415,7 +416,7 @@ impl fmt::Display for BigNum {
 
 //------------------------运算符重载-------------------------------//
 // 算术运算符需要单独实现。
-// 比较运算符已经通过特征属性来交给编译器自动实现，无需像CPP一样手动再实现一遍。因此对于
+// 比较运算符已经通过`特征属性`来交给编译器自动实现，无需像CPP一样手动再实现一遍。因此对于
 // operator==
 // operator!=
 // operator<
@@ -456,6 +457,14 @@ impl Add for BigNum {
     type Output = BigNum;
     fn add(self, rhs: Self) -> Self::Output {
         BigNum(self.0 + rhs.0)
+    }
+}
+
+impl Add<u32> for BigNum {
+    type Output = BigNum;
+
+    fn add(self, rhs: u32) -> Self::Output {
+        BigNum(self.0 + BigInt::from(rhs))
     }
 }
 /// 算术运算: +=
