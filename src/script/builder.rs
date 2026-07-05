@@ -1,7 +1,8 @@
 use crate::bignum::BigNum;
 use crate::script::consts::MAX_SCRIPT_SIZE;
-use crate::script::opcode::{OpCode, PushValue};
+use crate::script::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
 use crate::script::{Script, ScriptError};
+use crate::wallet::key::PubKey;
 
 /// @Name: builder
 ///
@@ -22,6 +23,19 @@ use crate::script::{Script, ScriptError};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ScriptBuilder {
     data: Script,
+}
+
+/// 标准脚本模板的最小集合。
+///
+/// 当前先覆盖 v0.3.19 挖矿和普通转账最核心的 P2PK/P2PKH，后续可继续补充 multisig。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StandardScript {
+    /// `<pubkey> OP_CHECKSIG`
+    PayToPubKey { pubkey: Vec<u8> },
+    /// `OP_DUP OP_HASH160 <pubkey_hash> OP_EQUALVERIFY OP_CHECKSIG`
+    PayToPubKeyHash { pubkey_hash: [u8; 20] },
+    /// 无法识别为当前支持的标准模板。
+    NonStandard,
 }
 
 impl ScriptBuilder {
@@ -105,4 +119,64 @@ impl ScriptBuilder {
             Ok(())
         }
     }
+}
+
+impl StandardScript {
+    /// 构造早期 coinbase 常用的 P2PK 脚本：`<pubkey> OP_CHECKSIG`。
+    pub fn p2pk(pubkey: PubKey) -> Result<Script, ScriptError> {
+        let mut builder = ScriptBuilder::new();
+        builder
+            .push_bytes(&pubkey.to_bytes())?
+            .push_opcode(OpCode::Crypto(Crypto::OpCheckSig))?;
+        builder.into_script()
+    }
+
+    /// 构造经典 P2PKH 脚本：`OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG`。
+    pub fn p2pkh(pubkey_hash: [u8; 20]) -> Result<Script, ScriptError> {
+        let mut builder = ScriptBuilder::new();
+        builder
+            .push_opcode(OpCode::Stack(Stack::OpDup))?
+            .push_opcode(OpCode::Crypto(Crypto::OpHash160))?
+            .push_bytes(&pubkey_hash)?
+            .push_opcode(OpCode::BitLogic(BitLogic::OpEqualVerify))?
+            .push_opcode(OpCode::Crypto(Crypto::OpCheckSig))?;
+        builder.into_script()
+    }
+
+    /// 识别当前支持的标准脚本模板。
+    ///
+    /// 这里按最短 push 编码识别 P2PKH；P2PK 同时接受压缩公钥和未压缩公钥。
+    pub fn parse(script: &[u8]) -> Self {
+        parse_p2pk(script)
+            .or_else(|| parse_p2pkh(script))
+            .unwrap_or(Self::NonStandard)
+    }
+}
+
+fn parse_p2pk(script: &[u8]) -> Option<StandardScript> {
+    let pubkey_len = script.first().copied()? as usize;
+    let is_pubkey_len = pubkey_len == 33 || pubkey_len == 65;
+    let is_script_len = script.len() == pubkey_len + 2;
+    let is_checksig = script.last().copied() == Some(Crypto::OpCheckSig.byte());
+
+    (is_pubkey_len && is_script_len && is_checksig).then(|| StandardScript::PayToPubKey {
+        pubkey: script[1..1 + pubkey_len].to_vec(),
+    })
+}
+
+fn parse_p2pkh(script: &[u8]) -> Option<StandardScript> {
+    const P2PKH_LEN: usize = 25;
+
+    let is_p2pkh = script.len() == P2PKH_LEN
+        && script[0] == Stack::OpDup.byte()
+        && script[1] == Crypto::OpHash160.byte()
+        && script[2] == 20
+        && script[23] == BitLogic::OpEqualVerify.byte()
+        && script[24] == Crypto::OpCheckSig.byte();
+
+    is_p2pkh.then(|| {
+        let mut pubkey_hash = [0u8; 20];
+        pubkey_hash.copy_from_slice(&script[3..23]);
+        StandardScript::PayToPubKeyHash { pubkey_hash }
+    })
 }

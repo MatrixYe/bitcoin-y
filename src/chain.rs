@@ -44,12 +44,11 @@ pub enum ChainError {
     // 创世块已经存在
     #[error("genesis block already exists: {hash}")]
     GenesisAlreadyExists { hash: Uint256 },
-
     //InvalidGenesis
     // InvalidBestHash
     // DisconnectedIndex
     // InvalidForkPoint
-    // InvalidHeight   
+    // InvalidHeight
 }
 
 /// 后续存储层需要实现的最小区块树持久化接口。
@@ -165,7 +164,9 @@ impl BlockIndex {
         let prev = prev_bi.map(|bi| bi.hash);
         let block_work = get_work_from_nbits(header.bits);
         let height = prev_bi.map_or(0, |x| x.height + 1);
-        let chain_work = prev_bi.map_or(block_work.clone(), |x| x.chain_work.clone() + block_work.clone());
+        let chain_work = prev_bi.map_or(block_work.clone(), |x| {
+            x.chain_work.clone() + block_work.clone()
+        });
 
         Self {
             hash,
@@ -239,7 +240,10 @@ impl BlockTree {
     /// 3. 如果发现`BlockIndex.prev == None`，设置为创世区块
     /// 3. 如果存储层提供了 best，就用它；否则选择累计工作量最大的节点
     /// 4. 调用 `set_best_chain` 重建 active chain 和 `next` 字段
-    pub fn from_indexes(db_indexes: Vec<BlockIndex>, db_best: Option<Uint256>) -> Result<Self, ChainError> {
+    pub fn from_indexes(
+        db_indexes: Vec<BlockIndex>,
+        db_best: Option<Uint256>,
+    ) -> Result<Self, ChainError> {
         let mut tree = Self::new();
 
         for index in db_indexes {
@@ -261,8 +265,12 @@ impl BlockTree {
         }
         // best
         let best = db_best.map_or(
-            tree.indexes.values().max_by(|left, right| left.chain_work.cmp(&right.chain_work)).map(|x| x.hash),
-            |x| Some(x));
+            tree.indexes
+                .values()
+                .max_by(|left, right| left.chain_work.cmp(&right.chain_work))
+                .map(|x| x.hash),
+            |x| Some(x),
+        );
         if let Some(hash) = best {
             tree.set_best_chain(hash)?;
         }
@@ -357,7 +365,11 @@ impl BlockTree {
     /// 调用者应先完成区块头验证和 PoW 验证；这里负责维护区块树关系和最佳链选择。
     pub fn add_header(&mut self, header: &BlockHeader) -> Result<Uint256, ChainError> {
         let prev_hash = header.prev_block;
-        let prev = self.indexes.get(&prev_hash).ok_or(ChainError::UnknownPrevBlock { prev: prev_hash })?.clone();
+        let prev = self
+            .indexes
+            .get(&prev_hash)
+            .ok_or(ChainError::UnknownPrevBlock { prev: prev_hash })?
+            .clone();
         let hash = self.insert_index(header, Some(&prev))?;
         let should_update_best = match self.best_index() {
             Some(best) => self.indexes[&hash].chain_work > best.chain_work,
@@ -374,7 +386,11 @@ impl BlockTree {
     ///
     /// 这是 `add_genesis` 和 `add_header` 的公共内部步骤：
     /// 创建 `BlockIndex`，写入主索引，并把它挂到父节点的 children 列表下。
-    fn insert_index(&mut self, header: &BlockHeader, prev: Option<&BlockIndex>) -> Result<Uint256, ChainError> {
+    fn insert_index(
+        &mut self,
+        header: &BlockHeader,
+        prev: Option<&BlockIndex>,
+    ) -> Result<Uint256, ChainError> {
         let hash = header.hash();
         if self.contains(hash) {
             return Err(ChainError::DuplicateBlock { hash });
@@ -407,7 +423,10 @@ impl BlockTree {
         let mut path = Vec::new();
         let mut current = Some(tip);
         while let Some(hash) = current {
-            let index = self.indexes.get(&hash).ok_or(ChainError::UnknownBlock { hash })?;
+            let index = self
+                .indexes
+                .get(&hash)
+                .ok_or(ChainError::UnknownBlock { hash })?;
             path.push(hash);
             current = index.prev;
         }
@@ -417,10 +436,16 @@ impl BlockTree {
         for window in path.windows(2) {
             let prev = window[0];
             let next = window[1];
-            self.indexes.get_mut(&prev).ok_or(ChainError::UnknownBlock { hash: prev })?.next = Some(next);
+            self.indexes
+                .get_mut(&prev)
+                .ok_or(ChainError::UnknownBlock { hash: prev })?
+                .next = Some(next);
         }
 
-        let best_block_index = self.indexes.get(&tip).ok_or(ChainError::UnknownBlock { hash: tip })?;
+        let best_block_index = self
+            .indexes
+            .get(&tip)
+            .ok_or(ChainError::UnknownBlock { hash: tip })?;
         // 最重链当前哈希
         self.best_hash = Some(tip);
         // 最重链高度
@@ -454,22 +479,42 @@ impl BlockTree {
     /// 3. 两个节点同时沿父节点向前回退，直到 hash 相等
     /// 4. left.hash == right.hash 说明它们走到了同一个区块，这个区块就是共同祖先。
     pub fn fork_point(&self, left: Uint256, right: Uint256) -> Result<Uint256, ChainError> {
-        let mut left = self.get(left).ok_or(ChainError::UnknownBlock { hash: left })?;
-        let mut right = self.get(right).ok_or(ChainError::UnknownBlock { hash: right })?;
+        let mut left = self
+            .get(left)
+            .ok_or(ChainError::UnknownBlock { hash: left })?;
+        let mut right = self
+            .get(right)
+            .ok_or(ChainError::UnknownBlock { hash: right })?;
 
         while left.height > right.height {
-            let prev = left.prev.ok_or(ChainError::UnknownBlock { hash: left.hash })?;
-            left = self.get(prev).ok_or(ChainError::UnknownBlock { hash: prev })?;
+            let prev = left
+                .prev
+                .ok_or(ChainError::UnknownBlock { hash: left.hash })?;
+            left = self
+                .get(prev)
+                .ok_or(ChainError::UnknownBlock { hash: prev })?;
         }
         while right.height > left.height {
-            let prev = right.prev.ok_or(ChainError::UnknownBlock { hash: right.hash })?;
-            right = self.get(prev).ok_or(ChainError::UnknownBlock { hash: prev })?;
+            let prev = right
+                .prev
+                .ok_or(ChainError::UnknownBlock { hash: right.hash })?;
+            right = self
+                .get(prev)
+                .ok_or(ChainError::UnknownBlock { hash: prev })?;
         }
         while left.hash != right.hash {
-            let left_prev = left.prev.ok_or(ChainError::UnknownBlock { hash: left.hash })?;
-            let right_prev = right.prev.ok_or(ChainError::UnknownBlock { hash: right.hash })?;
-            left = self.get(left_prev).ok_or(ChainError::UnknownBlock { hash: left_prev })?;
-            right = self.get(right_prev).ok_or(ChainError::UnknownBlock { hash: right_prev })?;
+            let left_prev = left
+                .prev
+                .ok_or(ChainError::UnknownBlock { hash: left.hash })?;
+            let right_prev = right
+                .prev
+                .ok_or(ChainError::UnknownBlock { hash: right.hash })?;
+            left = self
+                .get(left_prev)
+                .ok_or(ChainError::UnknownBlock { hash: left_prev })?;
+            right = self
+                .get(right_prev)
+                .ok_or(ChainError::UnknownBlock { hash: right_prev })?;
         }
 
         Ok(left.hash)
@@ -486,7 +531,6 @@ impl BlockTree {
         unimplemented!();
     }
 }
-
 
 //1. 新区块所在分支累计工作量超过当前 best chain，需要链重组。
 // 2. 响应对端 getblocks/getheaders 时，判断双方共同祖先。
