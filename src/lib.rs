@@ -8,7 +8,6 @@ pub mod hash;
 pub mod key;
 pub mod merkle;
 pub mod miner;
-pub mod pow;
 pub mod script;
 pub mod store;
 pub mod transaction;

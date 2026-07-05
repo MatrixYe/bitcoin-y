@@ -15,10 +15,16 @@ use thiserror::Error;
 ///
 /// 原版 `CBlockIndex` 通过裸指针 `pprev/pnext` 连接节点。Rust 中更适合用区块哈希作为稳定 ID，
 /// 再由 `BlockTree` 统一持有 `HashMap<Uint256, BlockIndex>`，避免自引用结构和生命周期复杂度（主要是现在我的rust水平还不够）
-///
-/// `prev` 表示该区块头声明的父区块；`next` 只表示当前最佳链上的下一块，不代表所有子分支。
-/// 所有分叉子节点由 `BlockTree.children` 记录。
-///
+///```text
+/// indexes       对应原版 mapBlockIndex
+/// children      保存完整分叉子节点关系
+/// genesis       对应 pindexGenesisBlock
+/// best          对应 hashBestChain / pindexBest
+/// best_height   对应 nBestHeight
+/// best_chain_work 对应 bnBestChainWork
+/// best_invalid_work 对应 bnBestInvalidWork
+/// active_chain  Rust 化的主链高度索引
+///```
 ///
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -38,6 +44,12 @@ pub enum ChainError {
     // 创世块已经存在
     #[error("genesis block already exists: {hash}")]
     GenesisAlreadyExists { hash: Uint256 },
+
+    //InvalidGenesis
+    // InvalidBestHash
+    // DisconnectedIndex
+    // InvalidForkPoint
+    // InvalidHeight   
 }
 
 /// 后续存储层需要实现的最小区块树持久化接口。
@@ -51,12 +63,35 @@ pub trait ChainStore {
     fn write_block_index(&mut self, index: &BlockIndex) -> Result<(), Self::Error>;
     fn write_best_hash(&mut self, hash: Uint256) -> Result<(), Self::Error>;
 }
+/// 核心区块状态：
+///
+/// - 只收到 header，没收到 block body
+/// - 收到完整 block，但还没验证交易
+/// - 验证失败，标记 invalid
+/// - 验证成功，但不在 active chain
+/// - 已经连接到 active chain
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BlockStatus {
+    HeaderOnly,
+    HaveData,
+    ValidHeader,
+    ValidBlock,
+    Connected,
+    Invalid,
+}
+
+/// 核心区块索引
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockIndex {
+    // 区块哈希
     hash: Uint256,
+    // 前一个区块哈希
     pub prev: Option<Uint256>,
+    // 后一个区块哈希
     pub next: Option<Uint256>,
+    // 区块高度
     pub height: u32,
+    // 累计链的工作量(注意不是区块本身的工作量)
     pub chain_work: BigNum,
 
     // block header
@@ -68,6 +103,7 @@ pub struct BlockIndex {
     pub nonce: u32,
 }
 
+/// 核心结构：区块树
 #[derive(Debug, Clone, Default)]
 pub struct BlockTree {
     /// 原版 `mapBlockIndex`：所有已知区块索引，key 是区块哈希。
@@ -178,7 +214,7 @@ impl BlockIndex {
         }
     }
 
-    /// 检测是否符合工作量
+    /// 检测是否符合工作量: `hash <= target`
     pub fn check_work(&self) -> bool {
         let (target, negative, overflow) = Uint256::set_compact(self.bits);
         if negative || overflow || target == Uint256::ZERO {
@@ -216,9 +252,12 @@ impl BlockTree {
             if index.is_genesis() {
                 tree.genesis = Some(index.hash());
             }
-            tree.indexes.insert(hash, index);
             // childrens
-            tree.children.entry(hash).or_default().push(hash);
+            if let Some(prev_hash) = index.prev {
+                tree.children.entry(prev_hash).or_default().push(hash);
+            }
+            // 全索引
+            tree.indexes.insert(hash, index);
         }
         // best
         let best = db_best.map_or(
@@ -264,7 +303,6 @@ impl BlockTree {
     pub fn best_index(&self) -> Option<&BlockIndex> {
         self.best_hash.and_then(|hash| self.get(hash))
     }
-
     /// 获取当前最佳链高度。
     pub fn best_height(&self) -> Option<u32> {
         self.best_height
@@ -321,7 +359,6 @@ impl BlockTree {
         let prev_hash = header.prev_block;
         let prev = self.indexes.get(&prev_hash).ok_or(ChainError::UnknownPrevBlock { prev: prev_hash })?.clone();
         let hash = self.insert_index(header, Some(&prev))?;
-        let option = self.get(hash);
         let should_update_best = match self.best_index() {
             Some(best) => self.indexes[&hash].chain_work > best.chain_work,
             None => true,
@@ -399,60 +436,60 @@ impl BlockTree {
     ///
     /// 通过节点高度到 `active_chain` 中做一次定位，比从 tip 一路回溯更直接。
     pub fn is_in_best_chain(&self, hash: Uint256) -> bool {
-
-        // 先判断Block在不在
-        let Some(index) = self.get(hash) else {
-            return false;
-        };
+        let index = self.get(hash);
+        if index.is_none() {
+            return false; // 先判断Block在不在
+        }
         // 再判断在不在最佳链上
+        let index = index.unwrap();
         self.active_hash_at_height(index.height) == Some(hash)
     }
 
-    /// 查找两个区块所在分支的共同祖先。
+    //noinspection ALL
+    /// 查找两个区块所在分支的共同祖先。fork_point 是后续实现 Reorganize 的基础
     ///
     /// 实现思路：
-    /// 1. 先把较高的区块沿 `prev` 回退到同一高度。
-    /// 2. 然后两个分支同时向前回退。
-    /// 3. 第一个 hash 相同的节点就是 fork point。
+    /// 1. 先取出左右两个区块索引。
+    /// 2. 对齐高度，把更高的那个区块往前回退，直到两个区块高度相同
+    /// 3. 两个节点同时沿父节点向前回退，直到 hash 相等
+    /// 4. left.hash == right.hash 说明它们走到了同一个区块，这个区块就是共同祖先。
     pub fn fork_point(&self, left: Uint256, right: Uint256) -> Result<Uint256, ChainError> {
-        let mut left = self
-            .get(left)
-            .ok_or(ChainError::UnknownBlock { hash: left })?;
-        let mut right = self
-            .get(right)
-            .ok_or(ChainError::UnknownBlock { hash: right })?;
+        let mut left = self.get(left).ok_or(ChainError::UnknownBlock { hash: left })?;
+        let mut right = self.get(right).ok_or(ChainError::UnknownBlock { hash: right })?;
 
         while left.height > right.height {
-            let prev = left
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: left.hash })?;
-            left = self
-                .get(prev)
-                .ok_or(ChainError::UnknownBlock { hash: prev })?;
+            let prev = left.prev.ok_or(ChainError::UnknownBlock { hash: left.hash })?;
+            left = self.get(prev).ok_or(ChainError::UnknownBlock { hash: prev })?;
         }
         while right.height > left.height {
-            let prev = right
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: right.hash })?;
-            right = self
-                .get(prev)
-                .ok_or(ChainError::UnknownBlock { hash: prev })?;
+            let prev = right.prev.ok_or(ChainError::UnknownBlock { hash: right.hash })?;
+            right = self.get(prev).ok_or(ChainError::UnknownBlock { hash: prev })?;
         }
         while left.hash != right.hash {
-            let left_prev = left
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: left.hash })?;
-            let right_prev = right
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: right.hash })?;
-            left = self
-                .get(left_prev)
-                .ok_or(ChainError::UnknownBlock { hash: left_prev })?;
-            right = self
-                .get(right_prev)
-                .ok_or(ChainError::UnknownBlock { hash: right_prev })?;
+            let left_prev = left.prev.ok_or(ChainError::UnknownBlock { hash: left.hash })?;
+            let right_prev = right.prev.ok_or(ChainError::UnknownBlock { hash: right.hash })?;
+            left = self.get(left_prev).ok_or(ChainError::UnknownBlock { hash: left_prev })?;
+            right = self.get(right_prev).ok_or(ChainError::UnknownBlock { hash: right_prev })?;
         }
 
         Ok(left.hash)
     }
+
+    pub fn disconnect_path() {
+        //旧链断开列表:
+        // old_tip -> ... -> fork 之后的块
+        unimplemented!();
+    }
+    pub fn connect_path() {
+        //新链连接列表:
+        // fork 之后 -> ... -> new_tip
+        unimplemented!();
+    }
 }
+
+
+//1. 新区块所在分支累计工作量超过当前 best chain，需要链重组。
+// 2. 响应对端 getblocks/getheaders 时，判断双方共同祖先。
+// 3. 构造 block locator 时，辅助定位本地链和远端链的交叉点。
+// 4. 检查某条 side chain 是否有机会成为新主链。
+// 5. 后续实现 DisconnectBlock / ConnectBlock 时，确定断开和连接范围。
