@@ -1,4 +1,3 @@
-use crate::hash::hash160;
 use secp256k1::ecdsa::Signature;
 use secp256k1::{rand, Message, PublicKey, SecretKey};
 use secp256k1::{All, Secp256k1};
@@ -14,32 +13,139 @@ use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum KeyError {
+    // 无效私钥
     #[error("invalid private key")]
     InvalidPrivateKey,
 
+    // 无效公钥
     #[error("invalid public key")]
     InvalidPublicKey,
 
+    // 无效的ECDSA签名
     #[error("invalid ECDSA signature")]
     InvalidSignature,
 }
 
+/// 私钥
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PrivateKey(pub SecretKey);
+pub struct PrivateKey(SecretKey);
 
+/// 公钥
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PubKey(pub PublicKey);
+pub struct PubKey(PublicKey);
 
+/// ECDS签名
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EcdsaSignature(pub Signature);
+pub struct EcdsaSignature(Signature);
 
+/// 密钥对
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyPair {
     private_key: PrivateKey,
     public_key: PubKey,
 }
 
+impl PrivateKey {
+    /// 从原始私钥字节创建 secp256k1 私钥。
+    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, KeyError> {
+        SecretKey::from_byte_array(bytes)
+            .map(|s| Self(s))
+            .map_err(|_| KeyError::InvalidPrivateKey)
+    }
+
+    /// 从私钥导出私钥字节(32bytes=256bit)
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.secret_bytes()
+    }
+
+    /// 十六进制显示私钥
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.to_bytes())
+    }
+}
+
+impl PubKey {
+    /// 从压缩或未压缩公钥字节创建公钥
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
+        PublicKey::from_slice(bytes)
+            .map(|x| Self(x))
+            .map_err(|_| KeyError::InvalidPublicKey)
+    }
+
+    pub fn to_bytes_compressed(&self) -> [u8; 33] {
+        self.0.serialize()
+    }
+
+    pub fn to_bytes_uncompressed(&self) -> [u8; 65] {
+        self.0.serialize_uncompressed()
+    }
+
+    /// 根据调用方选择导出压缩或未压缩公钥字节。
+    ///
+    /// 压缩公钥是 33 字节，未压缩公钥是 65 字节，二者长度不同，所以这里返回拥有所有权的 Vec。
+    pub fn to_bytes(&self, compress: bool) -> Vec<u8> {
+        if compress {
+            self.to_bytes_compressed().to_vec()
+        } else {
+            self.to_bytes_uncompressed().to_vec()
+        }
+    }
+
+    /// 十六进制字符串显示公钥
+    pub fn to_hex(&self, compress: bool) -> String {
+        hex::encode(self.to_bytes(compress))
+    }
+}
+
+/// Ecdsa签名 EcdsaSignature：
+///
+/// 对于 Bitcoin Script 交易签名，优先使用 DER 编码，再追加 1 字节 sighash type
+impl EcdsaSignature {
+    ///将 DER 编码的字节切片转换为签名
+    pub fn from_der(bytes: &[u8]) -> Result<Self, KeyError> {
+        Signature::from_der(bytes)
+            .map(|s| Self(s))
+            .map_err(|_| KeyError::InvalidSignature)
+    }
+
+    pub fn to_der(&self) -> Vec<u8> {
+        self.0.serialize_der().to_vec()
+    }
+
+    pub fn from_compact(v: &[u8]) -> Result<Self, KeyError> {
+        Signature::from_compact(v)
+            .map(Self)
+            .map_err(|_| KeyError::InvalidSignature)
+    }
+
+    pub fn to_compact(&self) -> Vec<u8> {
+        self.0.serialize_compact().to_vec()
+    }
+
+    pub fn from_compact_hex(s: &str) -> Result<Self, KeyError> {
+        // 不要使用s.as_bytes()，这会把字符串
+        hex::decode(s)
+            .map_err(|_| KeyError::InvalidSignature)
+            .and_then(|bytes| Self::from_compact(&bytes))
+    }
+
+    pub fn to_compact_hex(&self) -> String {
+        hex::encode(self.0.serialize_compact())
+    }
+
+    pub fn from_der_hex(s: &str) -> Result<Self, KeyError> {
+        hex::decode(s)
+            .map_err(|_| KeyError::InvalidSignature)
+            .and_then(|bytes| Self::from_der(&bytes))
+    }
+
+    pub fn to_der_hex(&self) -> String {
+        hex::encode(self.to_der())
+    }
+}
+
 impl KeyPair {
+    /// 随机生成密钥对
     pub fn generate() -> Self {
         let secp: Secp256k1<All> = Secp256k1::<All>::new();
         let (sk, pk) = secp.generate_keypair(&mut rand::rng());
@@ -60,65 +166,14 @@ impl KeyPair {
         })
     }
 
+    /// 读取私钥
     pub fn private_key(&self) -> PrivateKey {
         self.private_key
     }
 
+    /// 读取公钥
     pub fn public_key(&self) -> PubKey {
         self.public_key
-    }
-}
-
-impl PrivateKey {
-    /// 从原始私钥字节创建 secp256k1 私钥。
-    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, KeyError> {
-        SecretKey::from_byte_array(bytes)
-            .map(Self)
-            .map_err(|_| KeyError::InvalidPrivateKey)
-    }
-
-    pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.secret_bytes()
-    }
-
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.to_bytes())
-    }
-}
-
-impl PubKey {
-    /// 从压缩或未压缩公钥字节创建公钥。
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
-        PublicKey::from_slice(bytes)
-            .map(Self)
-            .map_err(|_| KeyError::InvalidPublicKey)
-    }
-
-    pub fn to_bytes_uncompressed(&self) -> [u8; 65] {
-        self.0.serialize_uncompressed()
-    }
-
-    pub fn to_bytes_compressed(&self) -> [u8; 33] {
-        self.0.serialize()
-    }
-
-    /// v0.3.19 更接近未压缩公钥语义，默认导出未压缩字节。
-    pub fn to_bytes(&self) -> [u8; 65] {
-        self.to_bytes_uncompressed()
-    }
-
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.to_bytes())
-    }
-}
-
-impl EcdsaSignature {
-    pub fn from_der(bytes: &[u8]) -> Result<Self, KeyError> {
-        Signature::from_der(bytes).map(Self).map_err(|_| KeyError::InvalidSignature)
-    }
-
-    pub fn to_der(&self) -> Vec<u8> {
-        self.0.serialize_der().to_vec()
     }
 }
 
@@ -136,9 +191,4 @@ pub fn verify_digest(pub_key: PubKey, digest: [u8; 32], signature: &EcdsaSignatu
     let secp = Secp256k1::<All>::new();
     let message = Message::from_digest(digest);
     secp.verify_ecdsa(message, &signature.0, &pub_key.0).is_ok()
-}
-
-/// 计算 `HASH160(pubkey)`，用于 P2PKH 地址和脚本模板。
-pub fn hash160_pubkey(pub_key: PubKey) -> [u8; 20] {
-    hash160(&pub_key.to_bytes())
 }

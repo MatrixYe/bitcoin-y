@@ -14,7 +14,7 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
     Sha256::digest(data).into()
 }
 
-/// 哈希计算 sha256d: data -> sha256(sha256(data))
+/// 双重哈希计算 sha256d: data -> sha256(sha256(data))
 pub fn sha256d(data: &[u8]) -> [u8; 32] {
     let v1: [u8; 32] = Sha256::digest(data).into();
     let v2: [u8; 32] = Sha256::digest(v1).into();

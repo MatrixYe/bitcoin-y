@@ -7,7 +7,7 @@
 /// @Description: null
 use crate::uint256::Uint256;
 use num_bigint::{BigInt, Sign};
-use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
+use num_traits::{Signed, ToPrimitive, Zero};
 use std::fmt;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign,
