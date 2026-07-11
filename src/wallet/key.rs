@@ -26,6 +26,15 @@ pub enum KeyError {
     InvalidSignature,
 }
 
+/// 公钥的类型
+/// 1. Compressed: 压缩版本，32字节
+/// 2. Uncompressed： 不压缩版本，65字节
+/// 为了语义的清晰，同时避免堆内存分配的性能损耗，我没有直接使用`&[u8]`或者`Vec`,而是定义PubKeyBytes枚举
+pub enum PubKeyBytes {
+    Compressed { bytes: [u8; 33] },
+    Uncompressed { bytes: [u8; 65] },
+}
+
 /// 私钥
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PrivateKey(SecretKey);
@@ -46,24 +55,51 @@ pub struct KeyPair {
 }
 
 impl PrivateKey {
-    /// 从原始私钥字节创建 secp256k1 私钥。
+    /// 32字节 => 私钥
     pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, KeyError> {
         SecretKey::from_byte_array(bytes)
             .map(|s| Self(s))
             .map_err(|_| KeyError::InvalidPrivateKey)
     }
 
-    /// 从私钥导出私钥字节(32bytes=256bit)
+    /// 私钥 => 字节(32bytes=256bit)
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.secret_bytes()
     }
 
-    /// 十六进制显示私钥
+    /// 十六进制私钥字符串 => 私钥
+    pub fn from_hex(s: &str) -> Result<Self, KeyError> {
+        let data = hex::decode(s).map_err(|_| KeyError::InvalidPrivateKey)?;
+        let data: [u8; 32] = data.try_into().map_err(|_| KeyError::InvalidPrivateKey)?;
+        Self::from_bytes(data)
+    }
+
+    /// 私钥 => 十六进制字符串
     pub fn to_hex(&self) -> String {
         hex::encode(self.to_bytes())
     }
 }
 
+
+impl PubKeyBytes {
+    // 转成字节切片
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            PubKeyBytes::Compressed { bytes } => bytes,
+            PubKeyBytes::Uncompressed { bytes } => bytes
+        }
+    }
+
+    // 获取长度
+    pub fn len(&self) -> usize {
+        self.as_bytes().len()
+    }
+
+    // 判断是否为压缩
+    pub fn is_compressed(&self) -> bool {
+        matches!(self, PubKeyBytes::Compressed {..})
+    }
+}
 impl PubKey {
     /// 从压缩或未压缩公钥字节创建公钥
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
@@ -72,28 +108,20 @@ impl PubKey {
             .map_err(|_| KeyError::InvalidPublicKey)
     }
 
-    pub fn to_bytes_compressed(&self) -> [u8; 33] {
-        self.0.serialize()
-    }
-
-    pub fn to_bytes_uncompressed(&self) -> [u8; 65] {
-        self.0.serialize_uncompressed()
-    }
 
     /// 根据调用方选择导出压缩或未压缩公钥字节。
     ///
-    /// 压缩公钥是 33 字节，未压缩公钥是 65 字节，二者长度不同，所以这里返回拥有所有权的 Vec。
-    pub fn to_bytes(&self, compress: bool) -> Vec<u8> {
-        if compress {
-            self.to_bytes_compressed().to_vec()
-        } else {
-            self.to_bytes_uncompressed().to_vec()
+    /// 压缩公钥是 33 字节，未压缩公钥是 65 字节，二者长度不同。
+    pub fn serailaze(&self, compress: bool) -> PubKeyBytes {
+        match compress {
+            true => PubKeyBytes::Compressed { bytes: self.0.serialize() },
+            false => PubKeyBytes::Uncompressed { bytes: self.0.serialize_uncompressed() },
         }
     }
 
     /// 十六进制字符串显示公钥
     pub fn to_hex(&self, compress: bool) -> String {
-        hex::encode(self.to_bytes(compress))
+        hex::encode(self.serailaze(compress).as_bytes())
     }
 }
 

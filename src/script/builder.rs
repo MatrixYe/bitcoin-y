@@ -126,7 +126,7 @@ impl StandardScript {
     pub fn p2pk(pubkey: PubKey) -> Result<Script, ScriptError> {
         let mut builder = ScriptBuilder::new();
         builder
-            .push_bytes(&pubkey.to_bytes(false))?
+            .push_bytes(&pubkey.serailaze(false).as_bytes())?
             .push_opcode(OpCode::Crypto(Crypto::OpCheckSig))?;
         builder.into_script()
     }

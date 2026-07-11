@@ -68,11 +68,19 @@ impl Network {
             _ => None,
         }
     }
+
+    pub fn is_legal_prefix(p: &u8) -> bool {
+        Self::from_p2pkh_prefix(*p).is_some()
+    }
+
+    pub fn is_illegal_prefix(p: &u8) -> bool {
+        Self::from_p2pkh_prefix(*p).is_none()
+    }
 }
 
 impl PubKeyHash {
     pub fn from_pubkey(pubkey: &PubKey, compress: bool) -> Self {
-        PubKeyHash(hash160(&pubkey.to_bytes(compress)))
+        PubKeyHash(hash160(&pubkey.serailaze(compress).as_bytes()))
     }
 
     pub fn as_bytes(&self) -> [u8; 20] {
@@ -109,28 +117,34 @@ impl Address {
         let mut payload = Vec::with_capacity(25);
         payload.push(self.network.to_p2pkh_prefix()); // 网络信息(1字节)
         payload.extend_from_slice(&self.pubkey_hash.0); // 公钥哈希(20字节)
-        payload.extend_from_slice(&checksum(&payload)); // 校验码(4字节)
+        payload.extend_from_slice(&cal_checksum(&payload)); // 校验码(4字节)
         bs58::encode(payload).into_string() // base58编码
     }
 
     /// 从 Base58Check 解析 P2PKH 地址。
     pub fn from_base58(s: &str) -> Result<Self, AddressError> {
+        // 序列化
         let payload = bs58::decode(s)
             .into_vec()
             .map_err(|_| AddressError::InvalidBase58)?;
 
+        // 长度25字节
         if payload.len() != 25 {
             return Err(AddressError::InvalidLength(payload.len()));
         }
-
+        // 网络标识
+        let network = payload[0];
+        // 数据段(网络标识+公钥哈希)
         let data = &payload[..21];
+        // 校验码
         let actual_checksum = &payload[21..];
-        if checksum(data) != actual_checksum {
+        if cal_checksum(data) != actual_checksum {
             return Err(AddressError::InvalidChecksum);
         }
-        let network = Network::from_p2pkh_prefix(payload[0])
-            .ok_or(AddressError::UnsupportedVersion(payload[0]))?;
+        // 网络版本
+        let network = Network::from_p2pkh_prefix(network).ok_or(AddressError::UnsupportedVersion(payload[0]))?;
 
+        // 公钥哈希
         let mut pubkey_hash = [0u8; 20];
         pubkey_hash.copy_from_slice(&payload[1..21]);
 
@@ -153,8 +167,31 @@ impl FromStr for Address {
 }
 
 /// 计算校验码
-fn checksum(data: &[u8]) -> [u8; 4] {
+fn cal_checksum(data: &[u8]) -> [u8; 4] {
     let hash = sha256d(data); // 双重哈希计算
     // hash[..4].try_into().unwrap(); // 尽量减少unwrap的使用
     [hash[0], hash[1], hash[2], hash[3]] // 取计算后的前4个字节作为校验码
 }
+
+pub fn check_address(s: &str) -> bool {
+    if let Ok(payload) = bs58::decode(s).into_vec() {
+        if payload.len() != 25 {
+            return false;
+        }
+        let network = &payload[0];
+        // let pbhash = &payload[1..21];
+        let data = &payload[..21];
+        let actual_checksum = &payload[21..];
+        if cal_checksum(data) != actual_checksum {
+            return false;
+        }
+        if Network::is_illegal_prefix(network) {
+            return false;
+        }
+        true
+    } else {
+        false
+    }
+}
+
+
