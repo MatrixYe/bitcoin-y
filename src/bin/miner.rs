@@ -19,21 +19,34 @@
 ///   -> AddToBlockIndex()
 ///   -> SetBestChain()
 /// ```
-use crate::block::Block;
-use crate::chain::BlockIndex;
-use crate::cons::COIN;
-use crate::transaction::{OutPoint, Transaction, TxIn, TxOut};
+use bitcoin_y::block::Block;
+use bitcoin_y::chain::BlockIndex;
+use bitcoin_y::cons::INIT_SUBSIDY;
+use bitcoin_y::script::builder::StandardScript;
+use bitcoin_y::transaction::Transaction;
+use bitcoin_y::wallet::key::{KeyPair, PubKey};
 use thiserror::Error;
+
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MiningError {
     #[error("unknown block index")]
     UnknownBlockIndex,
+
+    #[error("invalid transaction")]
+    InvalidTransaction,
+
+    #[error("invalid coinbase")]
+    InvalidCoinbase { msg: String },
 }
 
-pub fn bitcoin_miner(f_generate_bitcoins: bool) -> Result<(), MiningError> {
-    // todo 1、准备挖矿的钱包 和 默认拓展搜索空间 nExtraNonce
 
+fn main() {
+    let key_pair = KeyPair::generate();
+    miner_core(true, key_pair.public_key()).unwrap()
+}
+
+pub fn miner_core(f_generate_bitcoins: bool, pub_key: PubKey) -> Result<(), MiningError> {
     // 获取最佳前序区块
     let best_index = get_best_index()?;
 
@@ -41,7 +54,7 @@ pub fn bitcoin_miner(f_generate_bitcoins: bool) -> Result<(), MiningError> {
     let mut pblock = Block::new();
 
     // 创建一笔coinbase交易
-    let coinbase_tx = create_coinbase_tx();
+    let coinbase_tx = create_coinbase_tx(pub_key)?;
     // Add our coinbase tx as first transaction
     pblock.push_tx(coinbase_tx);
 
@@ -49,43 +62,27 @@ pub fn bitcoin_miner(f_generate_bitcoins: bool) -> Result<(), MiningError> {
     let (txs, total_fees) = collect_txs_from_melpool();
     pblock.push_txs(txs);
 
-    // 计算区块补贴
-    let block_subsidy = get_block_subsidy(best_index.height + 1);
-
-    // 统计区块价值，更新coinbase金额
-    let block_value = total_fees + block_subsidy;
-
+    // 计算区块价值:累计手续费+系统区块补贴
+    let block_value = get_block_value(total_fees, best_index.height + 1);
+    // 更新pblock的coinbase交易的金额value
     pblock.update_coinbase_value(block_value);
-    // pblock.set_prev_block(best_index.hash());
-    pblock.set_merkle_root(pblock.build_merkle_root());
-    pblock.set_time(0); //todo
-    pblock.set_bits(0); //todo
-    pblock.set_nonce(0);
-    increment_extra_nonce();
-    let nonce = search_nonce();
-    pblock.set_nonce(nonce);
+    // 初始化区块头数据
+    pblock.set_prev_block(best_index.hash()); // 前序区块哈希
+    pblock.set_merkle_root(pblock.build_merkle_root()); // 新区块默克尔树根
+    pblock.set_time(0); //todo 填充新区块时间
+    pblock.set_bits(0); //todo 填充新区块难度压缩值
+    pblock.set_nonce(0); // 填充nonce搜索起始点
+    increment_extra_nonce(); //拓展nonce搜索空间
+    let nonce = search_nonce(); // 搜索nonce
+    pblock.set_nonce(nonce); // 填充新区块nonce
     Ok(())
 }
 
-/// ```cpp
-/// int64 GetBlockValue(int nHeight, int64 nFees) {
-/// int64 nSubsidy = 50 * COIN;
-///
-/// // Subsidy is cut in half every 4 years
-/// nSubsidy >>= (nHeight / 210000);
-///
-/// return nSubsidy + nFees;
-/// }
-/// ```
-///
-fn get_block_subsidy(height: u32) -> u64 {
-    //1、计算系统奖励
-    let mut subsidy = 50 * COIN;
-    // Subsidy is cut in half every 4 years
-    // 4*365*24*6
-    subsidy >>= height / 21000;
-    subsidy
+/// 计算区块价值
+fn get_block_value(total_fee: u64, height: u32) -> u64 {
+    total_fee + INIT_SUBSIDY >> height / 21000
 }
+
 // Collect memory pool transactions into the block
 fn collect_txs_from_melpool() -> (Vec<Transaction>, u64) {
     unimplemented!()
@@ -95,7 +92,7 @@ fn get_best_index() -> Result<BlockIndex, MiningError> {
     unimplemented!();
 }
 
-// 拓展搜索空间
+// 拓展nonce搜索空间
 fn increment_extra_nonce() {
     unimplemented!();
 }
@@ -114,21 +111,10 @@ fn increment_extra_nonce() {
 ///     txNew.vout.resize(1);
 ///     txNew.vout[0].scriptPubKey << reservekey.GetReservedKey() << OP_CHECKSIG;
 ///   ```
-fn create_coinbase_tx() -> Transaction {
-    let mut coinbase = Transaction::default();
-
-    coinbase.vin = vec![TxIn {
-        prevout: OutPoint::set_null(),
-        script_sig: vec![],
-        sequence: u32::MAX,
-    }];
-
-    coinbase.vout = vec![TxOut {
-        value: 0,
-        script_pubkey: vec![], // todo 默认公钥
-    }];
-
-    coinbase
+fn create_coinbase_tx(pub_key: PubKey) -> Result<Transaction, MiningError> {
+    let mut coinbase = Transaction::new_coinbase();
+    coinbase.vout[0].script_pubkey = StandardScript::p2pk(pub_key).map_err(|e| MiningError::InvalidCoinbase { msg: e.to_string() })?;
+    Ok(coinbase)
 }
 
 /// ```cpp

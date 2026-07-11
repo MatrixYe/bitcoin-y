@@ -1,6 +1,10 @@
 # 定义默认目标：运行tests/目录下所有集成测试
 .DEFAULT_GOAL := test
 
+debug:
+	@echo "run src/bin/miner.rs"
+	RUST_LOG=debug cargo run --bin miner
+
 # ========================================
 # 核心测试命令
 # ========================================
@@ -50,14 +54,3 @@ test-with-ignored:
 clean:
 	@echo "清理编译产物..."
 	cargo clean
-
-# 查看所有可用目标
-help:
-	@echo "可用命令："
-	@echo "  make                - 运行tests/目录下所有集成测试（默认）"
-	@echo "  make test-specific FILE=<文件名> - 运行指定的测试文件（如 make test-specific FILE=integration_test）"
-	@echo "  make test-show-output - 运行集成测试并显示打印输出"
-	@echo "  make test-single-thread - 单线程运行集成测试"
-	@echo "  make test-with-ignored - 运行集成测试（包含忽略的测试）"
-	@echo "  make clean          - 清理编译产物"
-	@echo "  make help           - 查看帮助信息"

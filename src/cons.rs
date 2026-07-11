@@ -10,6 +10,9 @@ pub const MAX_BLOCK_SIZE: usize = 1024 * 1024;
 pub const COIN: u64 = 100_000_000;
 //static const int64 COIN = 100000000;
 
+/// 初始化区块补贴金额 50btc
+pub const INIT_SUBSIDY: u64 = 50 * COIN;
+
 /// coinbase 输出需要 100 个区块成熟。
 pub const COINBASE_MATURITY: usize = 100;
 

@@ -17,7 +17,18 @@ use thiserror::Error;
 /// - GetMerkleBranch
 /// - CheckMerkleBranch
 ///
-/// 因此放进 merkle.rs 比放在 hash.rs 更合理。hash.rs 应只提供 SHA256、SHA256d、RIPEMD160 等纯哈希原语。
+/// 因此放进 merkle.rs 比放在 hash.rs 更合理。
+/// hash.rs 应只提供 SHA256、SHA256d、RIPEMD160 等纯哈希原语。
+///
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum MerkleError {
+    #[error("cannot build a merkle proof for an empty tree")]
+    EmptyTree,
+
+    #[error("merkle leaf index {index} is out of bounds for {len} leaves")]
+    IndexOutOfBounds { index: usize, len: usize },
+}
 
 /// 默克尔树
 pub struct MerkleTree {
@@ -36,14 +47,6 @@ pub struct MerkleProof {
     siblings: Vec<Uint256>,
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum MerkleError {
-    #[error("cannot build a merkle proof for an empty tree")]
-    EmptyTree,
-
-    #[error("merkle leaf index {index} is out of bounds for {len} leaves")]
-    IndexOutOfBounds { index: usize, len: usize },
-}
 
 impl MerkleProof {
     pub fn tx_index(&self) -> usize {
@@ -85,14 +88,6 @@ pub fn compute_merkle_root(mut layer: Vec<Uint256>) -> Uint256 {
     }
     // merkle tree root
     layer[0]
-}
-
-// 拼接两个uint256,组成一个[u8;64],进行sha256d 哈希，得到一个新的[u8;32] 转化成Uint256
-fn hash_pair(h1: Uint256, h2: Uint256) -> Uint256 {
-    let mut connect = [0x0u8; 64];
-    connect[..32].copy_from_slice(&h1.to_bytes());
-    connect[32..].copy_from_slice(&h2.to_bytes());
-    Uint256::from_bytes(sha256d(&connect))
 }
 
 /// 为指定交易构造默克尔路径，类似原版 `GetMerkleBranch`。
@@ -176,4 +171,12 @@ pub fn verify_merkle_proof(txid: Uint256, proof: &MerkleProof, expected_root: Ui
 
     // 重建出的根必须与预期 Merkle Root 完全一致
     hash == expected_root
+}
+
+// 拼接两个uint256,组成一个[u8;64],进行sha256d 哈希，得到一个新的[u8;32] 转化成Uint256
+fn hash_pair(h1: Uint256, h2: Uint256) -> Uint256 {
+    let mut connect = [0x0u8; 64];
+    connect[..32].copy_from_slice(&h1.to_bytes());
+    connect[32..].copy_from_slice(&h2.to_bytes());
+    Uint256::from_bytes(sha256d(&connect))
 }

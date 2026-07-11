@@ -6,7 +6,6 @@ pub mod cons;
 pub mod errors;
 pub mod hash;
 pub mod merkle;
-pub mod miner;
 pub mod script;
 pub mod store;
 pub mod transaction;

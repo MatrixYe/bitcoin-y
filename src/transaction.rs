@@ -86,4 +86,28 @@ impl Transaction {
     pub fn is_coinbase(&self) -> bool {
         self.vin.len() == 1 && self.vin[0].prevout == OutPoint::null()
     }
+
+    /// 构造一个初始状态的coinbase交易
+    /// ## 初始化状态
+    /// - `vin.len` =1
+    /// - `vin[0].prevout = null`
+    /// - value =0
+    /// - script_sig = []
+    /// - script_pubkey = []
+    pub fn new_coinbase() -> Transaction {
+        let mut coinbase = Transaction::default();
+
+        coinbase.vin = vec![TxIn {
+            prevout: OutPoint::set_null(),
+            script_sig: Script::default(),
+            sequence: u32::MAX,
+        }];
+
+        coinbase.vout = vec![TxOut {
+            value: 0,
+            script_pubkey: Script::default()
+        }];
+
+        coinbase
+    }
 }
