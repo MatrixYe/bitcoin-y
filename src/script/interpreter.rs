@@ -1,14 +1,14 @@
-use crate::bignum::BigNum;
-use crate::hash::{hash160, ripemd160, sha1, sha256, sha256d};
-use crate::script::ScriptError;
-use crate::script::consts::{
+use super::consts::{
     MAX_OPS_PER_SCRIPT, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_NUM_SIZE, MAX_STACK_SIZE,
 };
-use crate::script::opcode::{
+use super::error::ScriptError;
+use super::opcode::{
     BitLogic, Control, Crypto, Expansion, Invalid, Numeric, OpCode, PushValue, Splice, Stack,
 };
-use crate::script::parser::ScriptToken;
-use crate::script::rules::{RuleV0_3_19, ScriptRules};
+use super::parser::ScriptToken;
+use super::rules::{RuleV0_3_19, ScriptRules};
+use crate::bignum::BigNum;
+use crate::hash::{hash160, ripemd160, sha1, sha256, sha256d};
 use std::cmp::max;
 
 /// @Name: interpreter.rs

@@ -5,7 +5,8 @@
 /// @Author: Matrix.Ye
 ///
 /// @Description: 将执行器接到交易的验证流程中去
-use crate::script::error::ScriptError;
+use super::error::ScriptError;
+
 
 pub fn verify_scripts() -> Result<(), ScriptError> {
     todo!()

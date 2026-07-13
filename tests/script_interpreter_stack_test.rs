@@ -1,4 +1,4 @@
-use bitcoin_y::script::ScriptError;
+use bitcoin_y::script::error::ScriptError;
 use bitcoin_y::script::interpreter::Interpreter;
 use bitcoin_y::script::opcode::{OpCode, Stack};
 use bitcoin_y::script::parser::{PushBytesKind, ScriptData, ScriptToken};

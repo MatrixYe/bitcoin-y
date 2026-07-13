@@ -1,5 +1,5 @@
-use crate::script::ScriptError;
-use crate::script::opcode::{OpCode, PushValue};
+use super::error::ScriptError;
+use super::opcode::{OpCode, PushValue};
 
 use std::fmt;
 

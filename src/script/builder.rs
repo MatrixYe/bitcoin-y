@@ -1,7 +1,8 @@
 use crate::bignum::BigNum;
-use crate::script::consts::MAX_SCRIPT_SIZE;
-use crate::script::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
-use crate::script::{Script, ScriptError};
+use super::consts::MAX_SCRIPT_SIZE;
+use super::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
+use super::{Script};
+use super::error::ScriptError;
 use crate::wallet::key::PubKey;
 
 /// @Name: builder

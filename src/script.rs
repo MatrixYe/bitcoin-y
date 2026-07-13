@@ -20,4 +20,4 @@ pub mod verify;
 
 pub type Script = Vec<u8>;
 
-pub use error::ScriptError;
+// pub use error::ScriptError;
