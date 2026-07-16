@@ -1,25 +1,27 @@
+//! @Name: merkle
+//!
+//! @Date: 2026/6/9 17:53
+//!
+//! @Author: Matrix.Ye
+//!
+//! @Description:
+//! Merkle 不只是哈希辅助函数，后续还会包含：Merkle Root 构造 、Merkle Branch/Proof 构造、 Merkle 路径验证 交易在区块中的包含性证明
+//! 节点右方向信息 可能的 Merkle Tree 缓存
+//! 原版也有类似职责：
+//!
+//! - BuildMerkleTree
+//! - GetMerkleBranch
+//! - CheckMerkleBranch
+//!
+//! 因此放进 merkle.rs 比放在 hash.rs 更合理。
+//! hash.rs 应只提供 SHA256、SHA256d、RIPEMD160 等纯哈希原语。
+//!
+//!
+
 use crate::hash::sha256d;
 use crate::uint256::Uint256;
 use thiserror::Error;
 
-/// @Name: merkle
-///
-/// @Date: 2026/6/9 17:53
-///
-/// @Author: Matrix.Ye
-///
-/// @Description:
-/// Merkle 不只是哈希辅助函数，后续还会包含：Merkle Root 构造 、Merkle Branch/Proof 构造、 Merkle 路径验证 交易在区块中的包含性证明
-/// 节点右方向信息 可能的 Merkle Tree 缓存
-/// 原版也有类似职责：
-///
-/// - BuildMerkleTree
-/// - GetMerkleBranch
-/// - CheckMerkleBranch
-///
-/// 因此放进 merkle.rs 比放在 hash.rs 更合理。
-/// hash.rs 应只提供 SHA256、SHA256d、RIPEMD160 等纯哈希原语。
-///
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MerkleError {

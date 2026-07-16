@@ -1,3 +1,11 @@
+//! @Name: transaction
+//!
+//! @Date: 2026/4/23 09:55
+//!
+//! @Author: Matrix.Ye
+//!
+//! @Description: 交易
+
 use crate::codec::deserialize_transaction;
 use crate::codec::serialize_transaction;
 use crate::errors::CError;

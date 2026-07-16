@@ -11,3 +11,9 @@ pub mod store;
 pub mod transaction;
 pub mod uint256;
 pub mod wallet;
+pub mod mining;
+pub mod mempool;
+mod node;
+mod validation;
+mod p2p;
+

@@ -1,15 +1,17 @@
+//! @Name: codec
+//!
+//! @Date: 2026/4/19 03:41
+//!
+//! @Author: Matrix.Ye
+//!
+//! @Description: 编码和解码，序列化与反序列化
+
 use crate::block::{Block, BlockHeader};
 use crate::errors::CError;
 use crate::transaction::{OutPoint, Transaction, TxIn, TxOut};
 use crate::uint256::Uint256;
 
-/// @Name: codec
-///
-/// @Date: 2026/4/19 03:41
-///
-/// @Author: Matrix.Ye
-///
-/// @Description: 编码和解码，序列化与反序列化
+
 
 /// 将整数编码为 Bitcoin CompactSize 格式。
 pub fn serialize_compact_size(value: u64) -> Vec<u8> {

@@ -1,3 +1,11 @@
+//! @Name: block
+//!
+//! @Date: 2026/6/15 17:35
+//!
+//! @Author: Matrix.Ye
+//!
+//! @Description: null
+
 use crate::bignum::BigNum;
 use crate::codec::serialize_block_header;
 use crate::hash::sha256d;

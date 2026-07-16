@@ -1,31 +1,31 @@
+//! @Name: chain
+//!
+//! @Date: 2026/7/10 17:35
+//!
+//! @Author: Matrix.Ye
+//!
+//! @Description:管理区块树、最佳区块链、和当前最近区块
+//!  区块树索引。这里保存的是“区块头 + 链关系 + 累计工作量”，不是完整区块体。
+//!
+//!  原版 `CBlockIndex` 通过裸指针 `pprev/pnext` 连接节点。Rust 中更适合用区块哈希作为稳定 ID，
+//!  再由 `BlockTree` 统一持有 `HashMap<Uint256, BlockIndex>`，避免自引用结构和生命周期复杂度（主要是现在我的rust水平还不够）
+//! ```text
+//!  indexes       对应原版 mapBlockIndex
+//!  children      保存完整分叉子节点关系
+//!  genesis       对应 pindexGenesisBlock
+//!  best          对应 hashBestChain / pindexBest
+//!  best_height   对应 nBestHeight
+//!  best_chain_work 对应 bnBestChainWork
+//!  best_invalid_work 对应 bnBestInvalidWork
+//!  active_chain  Rust 化的主链高度索引
+//! ```
+
 use crate::bignum::BigNum;
 use crate::block::BlockHeader;
 use crate::uint256::Uint256;
 use std::collections::HashMap;
 use thiserror::Error;
 
-/// @Name: chain
-///
-/// @Date: 2026/6/18 16:14
-///
-/// @Author: Matrix.Ye
-///
-/// @Description:
-/// 区块树索引。这里保存的是“区块头 + 链关系 + 累计工作量”，不是完整区块体。
-///
-/// 原版 `CBlockIndex` 通过裸指针 `pprev/pnext` 连接节点。Rust 中更适合用区块哈希作为稳定 ID，
-/// 再由 `BlockTree` 统一持有 `HashMap<Uint256, BlockIndex>`，避免自引用结构和生命周期复杂度（主要是现在我的rust水平还不够）
-///```text
-/// indexes       对应原版 mapBlockIndex
-/// children      保存完整分叉子节点关系
-/// genesis       对应 pindexGenesisBlock
-/// best          对应 hashBestChain / pindexBest
-/// best_height   对应 nBestHeight
-/// best_chain_work 对应 bnBestChainWork
-/// best_invalid_work 对应 bnBestInvalidWork
-/// active_chain  Rust 化的主链高度索引
-///```
-///
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ChainError {
@@ -54,14 +54,7 @@ pub enum ChainError {
 /// 后续存储层需要实现的最小区块树持久化接口。
 ///
 /// 当前挖矿流程优先以内存为主，所以这里先只定义 trait，不绑定 SQLite、文件或其他具体存储。
-pub trait ChainStore {
-    type Error;
 
-    fn load_block_indexes(&self) -> Result<Vec<BlockIndex>, Self::Error>;
-    fn load_best_hash(&self) -> Result<Option<Uint256>, Self::Error>;
-    fn write_block_index(&mut self, index: &BlockIndex) -> Result<(), Self::Error>;
-    fn write_best_hash(&mut self, hash: Uint256) -> Result<(), Self::Error>;
-}
 /// 核心区块状态：
 ///
 /// - 只收到 header，没收到 block body

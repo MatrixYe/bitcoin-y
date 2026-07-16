@@ -1,7 +1,7 @@
-// @Name: uint256
-// @Date: 2026/4/14 14:52
-// @Author: Matrix.Ye
-// @Description: 固定 256 位无符号整数，参考 Bitcoin v0.3.19 base_uint<256>
+//！ @Name: uint256
+//！ @Date: 2026/4/14 14:52
+//！ @Author: Matrix.Ye
+//！ @Description: 固定 256 位无符号整数，参考 Bitcoin v0.3.19 base_uint<256>
 
 use std::cmp::Ordering;
 use std::fmt;

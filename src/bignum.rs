@@ -1,10 +1,10 @@
-/// @Name: bignum
-///
-/// @Date: 2026/5/15 17:35
-///
-/// @Author: Matrix.Ye
-///
-/// @Description: null
+//! @Name: bignum
+//!
+//! @Date: 2026/5/15 17:35
+//!
+//! @Author: Matrix.Ye
+//!
+//! @Description: 定义*有符号*、*无固定长度*、*小端序的大数*，主要用于脚本系统
 use crate::uint256::Uint256;
 use num_bigint::{BigInt, Sign};
 use num_traits::{Signed, ToPrimitive, Zero};
