@@ -5,17 +5,22 @@
 //! @Author: Matrix.Ye
 //!
 //! @Description: 全局状态管理
+//! - BlockTree 保存区块头索引，不保存完整区块体
+//! - MemPool 保存有限数量的待确认交易
+//! - Store 保存完整区块、交易、UTXO、钱包数据
+//! - ChainParams 保存 pow limit、创世块、减半周期、目标间隔
 
 use crate::block::Block;
 use crate::chain::BlockTree;
 use crate::mempool::Mempool;
+use crate::parms::ChainParams;
 use crate::transaction::Transaction;
-
 /// 节点全局状态
-pub struct NodeState {
+pub struct NodeState<S> {
     pub chain: BlockTree,
     pub mempool: Mempool,
-    // params:ChainParams,
+    pub params: ChainParams,
+    pub store: S,
 }
 
 /// 节点事件
@@ -27,5 +32,13 @@ pub enum NodeEvent {
     Shutdown,
 }
 
-
-impl NodeState {}
+impl<S> NodeState<S> {
+    pub fn new(chain: BlockTree, mempool: Mempool, params: ChainParams, store: S) -> Self {
+        Self {
+            chain,
+            mempool,
+            params,
+            store,
+        }
+    }
+}

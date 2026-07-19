@@ -62,7 +62,7 @@ fn block_work_matches_original_formula() {
             bits: 0x1d00ffff,
             ..BlockHeader::default()
         },
-        txdata: vec![],
+        vtx: vec![],
     };
 
     assert_eq!(block.get_work(), BigNum::from_hex("100010001").unwrap());
@@ -72,7 +72,7 @@ fn block_work_matches_original_formula() {
             bits: 0x01810000,
             ..BlockHeader::default()
         },
-        txdata: vec![],
+        vtx: vec![],
     };
     assert_eq!(invalid_block.get_work(), BigNum::zero());
 }

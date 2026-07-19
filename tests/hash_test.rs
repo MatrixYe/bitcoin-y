@@ -69,7 +69,7 @@ fn hash256_display_hex_roundtrip() {
 //     assert_eq!(
 //         Block {
 //             header: BlockHeader::default(),
-//             txdata: vec![tx],
+//             vtx: vec![tx],
 //         }
 //         .merkle_root()
 //         .to_display_hex(),

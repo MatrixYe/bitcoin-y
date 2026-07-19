@@ -90,8 +90,8 @@ pub fn serialize_block(block: &Block) -> Vec<u8> {
 
     // 区块 = 区块头 + 交易数量 + 交易列表。
     buffer.extend_from_slice(&serialize_block_header(&block.header));
-    write_compact_size(&mut buffer, block.txdata.len() as u64);
-    for tx in &block.txdata {
+    write_compact_size(&mut buffer, block.vtx.len() as u64);
+    for tx in &block.vtx {
         buffer.extend_from_slice(&serialize_transaction(tx));
     }
     buffer
@@ -102,12 +102,12 @@ pub fn deserialize_block(bytes: &[u8]) -> Result<Block, CError> {
     let mut reader = ByteReader::new(bytes);
     let header = read_block_header(&mut reader)?;
     let tx_count = reader.read_len()?;
-    let mut txdata = Vec::with_capacity(tx_count);
+    let mut vtx = Vec::with_capacity(tx_count);
     for _ in 0..tx_count {
-        txdata.push(read_transaction(&mut reader)?);
+        vtx.push(read_transaction(&mut reader)?);
     }
     reader.finish()?;
-    Ok(Block { header, txdata })
+    Ok(Block { header, vtx })
 }
 
 /// 从当前游标位置读取一笔交易。
@@ -207,6 +207,10 @@ fn write_u32(buffer: &mut Vec<u8>, value: u32) {
     buffer.extend_from_slice(&value.to_le_bytes());
 }
 
+/// 写入 i64 小端整数
+fn write_i64(buffer: &mut Vec<u8>, value: i64) {
+    buffer.extend_from_slice(&value.to_le_bytes());
+}
 /// 写入 u64 小端整数。
 fn write_u64(buffer: &mut Vec<u8>, value: u64) {
     buffer.extend_from_slice(&value.to_le_bytes());

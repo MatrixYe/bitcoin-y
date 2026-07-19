@@ -1,8 +1,8 @@
-use crate::bignum::BigNum;
 use super::consts::MAX_SCRIPT_SIZE;
-use super::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
-use super::{Script};
 use super::error::ScriptError;
+use super::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
+use super::Script;
+use crate::bignum::BigNum;
 use crate::wallet::key::PubKey;
 
 /// @Name: builder
@@ -28,7 +28,7 @@ pub struct ScriptBuilder {
 
 /// 标准脚本模板的最小集合。
 ///
-/// 当前先覆盖 v0.3.19 挖矿和普通转账最核心的 P2PK/P2PKH，后续可继续补充 multisig。
+/// 当前先覆盖 v0.3.19 挖矿和普通转账最核心的 P2PK/P2PKH，后续继续补充 multisig。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StandardScript {
     /// `<pubkey> OP_CHECKSIG`

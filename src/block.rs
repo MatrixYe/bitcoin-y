@@ -4,7 +4,7 @@
 //!
 //! @Author: Matrix.Ye
 //!
-//! @Description: null
+//! @Description: 区块数据结构
 
 use crate::bignum::BigNum;
 use crate::codec::serialize_block_header;
@@ -12,6 +12,32 @@ use crate::hash::sha256d;
 use crate::merkle::compute_merkle_root;
 use crate::transaction::Transaction;
 use crate::uint256::Uint256;
+use thiserror::Error;
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum BlockError {
+    #[error("InvalidTransaction")]
+    InvalidTransaction,
+
+    #[error("InvalidVersion")]
+    InvalidVersion,
+
+    #[error("InvalidCoinbase")]
+    InvalidCoinbase,
+
+    #[error("InvalidTimestamp")]
+    InvalidTimestamp,
+
+    #[error("InvalidDifficulty")]
+    InvalidDifficulty,
+
+    #[error("InvalidNonce")]
+    InvalidNonce,
+
+    #[error("EmptyTxData")]
+    EmptyTxData,
+}
+
 
 /// - version       4 字节
 /// - prev_block   32 字节
@@ -52,14 +78,14 @@ pub struct BlockHeader {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Block {
     pub header: BlockHeader,
-    pub txdata: Vec<Transaction>,
+    pub vtx: Vec<Transaction>,
 }
 
 impl Block {
     pub fn new() -> Block {
         Block {
             header: BlockHeader::new(),
-            txdata: Vec::new(),
+            vtx: Vec::new(),
         }
     }
 
@@ -83,15 +109,22 @@ impl Block {
     }
     // 添加一笔交易
     pub fn push_tx(&mut self, tx: Transaction) {
-        self.txdata.push(tx);
+        self.vtx.push(tx);
     }
     // 添加多笔交易
     pub fn push_txs(&mut self, txs: Vec<Transaction>) {
-        self.txdata.extend_from_slice(&txs);
+        self.vtx.extend_from_slice(&txs);
     }
     // 更新区块的coinbase 金额
-    pub fn update_coinbase_value(&mut self, value: u64) {
-        self.txdata[0].vout[0].value = value;
+    pub fn update_coinbase_value(&mut self, value: u64) -> Result<u64, BlockError> {
+        if self.vtx.is_empty() {
+            return Err(BlockError::EmptyTxData);
+        }
+        if !self.vtx[0].is_coinbase() {
+            return Err(BlockError::InvalidCoinbase);
+        }
+        self.vtx[0].vout[0].value = value;
+        Ok(value)
     }
 }
 
@@ -127,7 +160,7 @@ impl Block {
 
     /// 计算区块头的默克尔树根
     pub fn build_merkle_root(&self) -> Uint256 {
-        let txids: Vec<Uint256> = self.txdata.iter().map(|x| x.txid()).collect();
+        let txids: Vec<Uint256> = self.vtx.iter().map(|x| x.txid()).collect();
         compute_merkle_root(txids)
     }
 

@@ -130,11 +130,11 @@ fn block_roundtrip_preserves_transactions() {
             bits: 0x1d00ffff,
             nonce: 99,
         },
-        txdata: vec![tx.clone()],
+        vtx: vec![tx.clone()],
     };
 
     let serialized = serialize_block(&block);
     let decoded = deserialize_block(&serialized).unwrap();
     assert_eq!(decoded, block);
-    assert_eq!(decoded.txdata[0], tx);
+    assert_eq!(decoded.vtx[0], tx);
 }

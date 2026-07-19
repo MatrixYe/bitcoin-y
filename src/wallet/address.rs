@@ -1,4 +1,5 @@
 use crate::hash::{hash160, sha256d};
+use crate::parms::Network;
 use crate::wallet::key::PubKey;
 use std::fmt;
 use std::str::FromStr;
@@ -31,12 +32,6 @@ pub enum AddressError {
     UnsupportedVersion(u8),
 }
 
-/// 网络类型 Network
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Network {
-    Main,
-    Test,
-}
 
 /// 公钥哈希 PubKeyHash，固定20字节
 ///
@@ -51,31 +46,6 @@ pub struct PubKeyHash(pub [u8; 20]);
 pub struct Address {
     network: Network,
     pubkey_hash: PubKeyHash,
-}
-
-impl Network {
-    pub const fn to_p2pkh_prefix(self) -> u8 {
-        match self {
-            Self::Main => 0x00,
-            Self::Test => 0x6f,
-        }
-    }
-
-    pub const fn from_p2pkh_prefix(prefix: u8) -> Option<Self> {
-        match prefix {
-            0x00 => Some(Self::Main),
-            0x6f => Some(Self::Test),
-            _ => None,
-        }
-    }
-
-    pub fn is_legal_prefix(p: &u8) -> bool {
-        Self::from_p2pkh_prefix(*p).is_some()
-    }
-
-    pub fn is_illegal_prefix(p: &u8) -> bool {
-        Self::from_p2pkh_prefix(*p).is_none()
-    }
 }
 
 impl PubKeyHash {

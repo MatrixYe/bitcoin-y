@@ -23,3 +23,19 @@
 // accept_block(state, block)
 // connect_block(state, block)
 // reorganize 重组区块链
+
+pub fn process_block() {
+    todo!()
+}
+
+pub fn accept_block() {
+    todo!()
+}
+
+pub fn connect_block() {
+    todo!()
+}
+
+pub fn reorganize() {
+    todo!()
+}

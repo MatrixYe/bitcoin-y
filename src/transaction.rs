@@ -23,28 +23,6 @@ pub struct OutPoint {
     pub n: u32,
 }
 
-impl OutPoint {
-    pub const NULL: Self = Self {
-        hash: Uint256::ZERO, // coinbase pre hash
-        n: COINBASE_N,
-    };
-
-    pub const fn set_null() -> Self {
-        Self {
-            hash: Uint256::ZERO, // coinbase pre hash
-            n: COINBASE_N,
-        }
-    }
-
-    pub fn null() -> Self {
-        Self::set_null()
-    }
-
-    pub fn is_null(&self) -> bool {
-        self.hash == Uint256::ZERO && self.n == COINBASE_N
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TxIn {
     pub prevout: OutPoint,
@@ -66,6 +44,7 @@ pub struct Transaction {
     pub vout: Vec<TxOut>,
     pub lock_time: u32,
 }
+
 
 impl Transaction {
     /// 计算传统 Bitcoin txid。
@@ -92,7 +71,11 @@ impl Transaction {
 
     /// 判断是否是 coinbase 交易。
     pub fn is_coinbase(&self) -> bool {
-        self.vin.len() == 1 && self.vin[0].prevout == OutPoint::null()
+        self.vin.len() == 1 && self.vin[0].prevout == OutPoint::NULL
+    }
+
+    pub fn is_final(&self) -> bool {
+        todo!();
     }
 
     /// 构造一个初始状态的coinbase交易
@@ -117,5 +100,28 @@ impl Transaction {
         }];
 
         coinbase
+    }
+}
+
+
+impl OutPoint {
+    pub const NULL: Self = Self {
+        hash: Uint256::ZERO, // coinbase pre hash
+        n: COINBASE_N,
+    };
+
+    pub const fn set_null() -> Self {
+        Self {
+            hash: Uint256::ZERO, // coinbase pre hash
+            n: COINBASE_N,
+        }
+    }
+
+    pub fn null() -> Self {
+        Self::set_null()
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.hash == Uint256::ZERO && self.n == COINBASE_N
     }
 }
