@@ -13,7 +13,6 @@ use crate::uint256::Uint256;
 mod schema;
 pub mod sqlite;
 
-
 pub trait BlockStore {
     type Error;
     fn read_block(&self, hash: Uint256) -> Result<Option<Block>, Self::Error>;

@@ -5,10 +5,17 @@
 //! @Author: Matrix.Ye
 //!
 //! @Description:
-//! # 区块树状态维护
+//! # 区块树核心
+//! 本模块的作用是定义比特币的核心数据结构:*区块树*，并对其继续精细化管理。
+//! 1. `区块链`是容易误导的说法，实际上，真实的比特币中区块组成的是`tree`
+//! 2. `最长链`的说法是一种错误，实际上比特币关注的是**工作量最重**，而不是区块高度最高，因此本文遵循中本聪的命名习惯，统称为*最佳链*
+//!
+//! ## 基本数据结构
+//! ### 1、BlockIndex
+//! BlockIndex 表示区块索引，它其实是blockheader的衍生。基本遵循了原版写法，保留了区块头数据和相关索引数据，但是移除了与本地存储相关的属性，这不应该在抽象结构中定义
+//!### 2. BlockTree
 //! 管理区块树、最佳区块链、和当前最近区块
 //!  区块树索引。这里保存的是“区块头 + 链关系 + 累计工作量”，不是完整区块体。
-//!
 //!  原版 `CBlockIndex` 通过裸指针 `pprev/pnext` 连接节点。Rust 中更适合用区块哈希作为稳定 ID，
 //!  再由 `BlockTree` 统一持有 `HashMap<Uint256, BlockIndex>`，避免自引用结构和生命周期复杂度（主要是现在我的rust水平还不够）
 //! ```text
@@ -21,13 +28,22 @@
 //!  best_invalid_work 对应 bnBestInvalidWork
 //!  active_chain  Rust 化的主链高度索引
 //! ```
+//!
+//! ## 区块链的分叉与重组
+//! 新区块所在分支累计工作量超过当前 best chain，就需要链重组。
+//!
+//! 1. 依赖fork_point
+//! 2. 响应对端 getblocks/getheaders 时，判断双方共同祖先。
+//! 3. 构造 block locator 时，辅助定位本地链和远端链的交叉点。
+//! 4. 检查某条 side chain 是否有机会成为新主链。
+//! 5. 后续实现 DisconnectBlock / ConnectBlock 时，确定断开和连接范围。
+//!
 
 use crate::bignum::BigNum;
 use crate::block::BlockHeader;
 use crate::uint256::Uint256;
 use std::collections::HashMap;
 use thiserror::Error;
-
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ChainError {
@@ -277,6 +293,10 @@ impl BlockTree {
         self.indexes.len()
     }
 
+    pub fn active_len(&self) -> usize {
+        self.active_chain.len()
+    }
+
     /// 判断区块树是否为空。
     pub fn is_empty(&self) -> bool {
         self.indexes.is_empty()
@@ -515,20 +535,35 @@ impl BlockTree {
         Ok(left.hash)
     }
 
-    pub fn disconnect_path() {
+    pub fn disconnect_path(&self) {
         //旧链断开列表:
         // old_tip -> ... -> fork 之后的块
-        unimplemented!();
+        todo!()
     }
-    pub fn connect_path() {
+
+    pub fn connect_path(&self) {
         //新链连接列表:
         // fork 之后 -> ... -> new_tip
-        unimplemented!();
+        todo!()
+    }
+
+    /// 时间相关:计算中位数时间
+    /// 参考:GetMedianTimePast
+    /// 从当前 CBlockIndex 开始，向前取最多 11 个区块的 nTime 排序,返回中间值
+    pub fn get_median_time_past(&self) -> Option<u32> {
+        let len = self.active_len();
+        if len == 0 {
+            return None;
+        }
+
+        let mut buff: Vec<u32> = Vec::with_capacity(11);
+
+        for i in 0..len.min(11) {
+            let hash = self.active_chain[len - 1 - i];
+            let index = self.get(hash)?;
+            buff.push(index.time);
+        }
+        buff.sort();
+        buff.get(buff.len() / 2).copied()
     }
 }
-
-//1. 新区块所在分支累计工作量超过当前 best chain，需要链重组。
-// 2. 响应对端 getblocks/getheaders 时，判断双方共同祖先。
-// 3. 构造 block locator 时，辅助定位本地链和远端链的交叉点。
-// 4. 检查某条 side chain 是否有机会成为新主链。
-// 5. 后续实现 DisconnectBlock / ConnectBlock 时，确定断开和连接范围。

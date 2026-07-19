@@ -16,11 +16,11 @@ use crate::mempool::Mempool;
 use crate::parms::ChainParams;
 use crate::transaction::Transaction;
 /// 节点全局状态
-pub struct NodeState<S> {
+pub struct NodeState {
     pub chain: BlockTree,
     pub mempool: Mempool,
     pub params: ChainParams,
-    pub store: S,
+    // pub store: S,
 }
 
 /// 节点事件
@@ -32,13 +32,12 @@ pub enum NodeEvent {
     Shutdown,
 }
 
-impl<S> NodeState<S> {
-    pub fn new(chain: BlockTree, mempool: Mempool, params: ChainParams, store: S) -> Self {
+impl NodeState {
+    pub fn new(chain: BlockTree, mempool: Mempool, params: ChainParams) -> Self {
         Self {
             chain,
             mempool,
             params,
-            store,
         }
     }
 }

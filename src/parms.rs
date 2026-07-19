@@ -6,7 +6,6 @@
 //!
 //! @Description: 自定义链运行的基本参数
 
-use crate::block::Block;
 use crate::uint256::Uint256;
 
 /// 网络类型 Network
@@ -44,31 +43,22 @@ impl Network {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChainParams {
     pub network: Network,
-    pub genesis_block: Block,
+    // pub genesis_block: Block,
     pub pow_limit: Uint256,
     pub target_spacing: u32,
     pub target_timespan: u32,
+    // 初始区块补贴
     pub subsidy_initial: u64,
+    // 区块补贴半衰期
     pub subsidy_halving_interval: u64,
 }
 
 impl ChainParams {
-    pub fn new() -> Self {
-        Self {
-            network: Network::Main,
-            genesis_block: Default::default(),
-            pow_limit: Default::default(),
-            target_spacing: 0,
-            target_timespan: 0,
-            subsidy_initial: 0,
-            subsidy_halving_interval: 0,
-        }
-    }
-    pub fn test() -> Self {
+    pub const TEST: Self = Self::test();
+    const fn test() -> Self {
         Self {
             network: Network::Test,
-            genesis_block: Default::default(),
-            pow_limit: Default::default(),
+            pow_limit: Uint256::MAX,
             target_spacing: 0,
             target_timespan: 0,
             subsidy_initial: 50 * 100_000_000,

@@ -1,6 +1,6 @@
 use secp256k1::ecdsa::Signature;
-use secp256k1::{rand, Message, PublicKey, SecretKey};
 use secp256k1::{All, Secp256k1};
+use secp256k1::{Message, PublicKey, SecretKey, rand};
 use thiserror::Error;
 
 /// @Name key.rs
@@ -80,13 +80,12 @@ impl PrivateKey {
     }
 }
 
-
 impl PubKeyBytes {
     // 转成字节切片
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             PubKeyBytes::Compressed { bytes } => bytes,
-            PubKeyBytes::Uncompressed { bytes } => bytes
+            PubKeyBytes::Uncompressed { bytes } => bytes,
         }
     }
 
@@ -97,7 +96,7 @@ impl PubKeyBytes {
 
     // 判断是否为压缩
     pub fn is_compressed(&self) -> bool {
-        matches!(self, PubKeyBytes::Compressed {..})
+        matches!(self, PubKeyBytes::Compressed { .. })
     }
 }
 impl PubKey {
@@ -108,14 +107,17 @@ impl PubKey {
             .map_err(|_| KeyError::InvalidPublicKey)
     }
 
-
     /// 根据调用方选择导出压缩或未压缩公钥字节。
     ///
     /// 压缩公钥是 33 字节，未压缩公钥是 65 字节，二者长度不同。
     pub fn serailaze(&self, compress: bool) -> PubKeyBytes {
         match compress {
-            true => PubKeyBytes::Compressed { bytes: self.0.serialize() },
-            false => PubKeyBytes::Uncompressed { bytes: self.0.serialize_uncompressed() },
+            true => PubKeyBytes::Compressed {
+                bytes: self.0.serialize(),
+            },
+            false => PubKeyBytes::Uncompressed {
+                bytes: self.0.serialize_uncompressed(),
+            },
         }
     }
 

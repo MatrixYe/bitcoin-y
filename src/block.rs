@@ -38,7 +38,6 @@ pub enum BlockError {
     EmptyTxData,
 }
 
-
 /// - version       4 字节
 /// - prev_block   32 字节
 /// - merkle_root  32 字节

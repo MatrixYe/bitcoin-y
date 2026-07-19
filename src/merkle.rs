@@ -22,7 +22,6 @@ use crate::hash::sha256d;
 use crate::uint256::Uint256;
 use thiserror::Error;
 
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MerkleError {
     #[error("cannot build a merkle proof for an empty tree")]
@@ -48,7 +47,6 @@ pub struct MerkleProof {
     tx_index: usize,
     siblings: Vec<Uint256>,
 }
-
 
 impl MerkleProof {
     pub fn tx_index(&self) -> usize {

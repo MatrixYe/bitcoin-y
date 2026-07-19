@@ -1,7 +1,7 @@
+use super::Script;
 use super::consts::MAX_SCRIPT_SIZE;
 use super::error::ScriptError;
 use super::opcode::{BitLogic, Crypto, OpCode, PushValue, Stack};
-use super::Script;
 use crate::bignum::BigNum;
 use crate::wallet::key::PubKey;
 

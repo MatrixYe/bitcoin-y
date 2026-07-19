@@ -45,7 +45,6 @@ pub struct Transaction {
     pub lock_time: u32,
 }
 
-
 impl Transaction {
     /// 计算传统 Bitcoin txid。
     pub fn txid(&self) -> Uint256 {
@@ -96,13 +95,12 @@ impl Transaction {
 
         coinbase.vout = vec![TxOut {
             value: 0,
-            script_pubkey: Script::default()
+            script_pubkey: Script::default(),
         }];
 
         coinbase
     }
 }
-
 
 impl OutPoint {
     pub const NULL: Self = Self {

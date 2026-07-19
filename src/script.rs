@@ -18,4 +18,3 @@ pub mod rules;
 pub mod verify;
 
 pub type Script = Vec<u8>;
-

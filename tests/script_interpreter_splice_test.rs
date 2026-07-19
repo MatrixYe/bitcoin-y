@@ -1,5 +1,5 @@
-use bitcoin_y::script::error::ScriptError;
 use bitcoin_y::script::consts::MAX_SCRIPT_ELEMENT_SIZE;
+use bitcoin_y::script::error::ScriptError;
 use bitcoin_y::script::interpreter::Interpreter;
 use bitcoin_y::script::opcode::{OpCode, Splice};
 use bitcoin_y::script::parser::ScriptToken;

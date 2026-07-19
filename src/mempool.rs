@@ -52,7 +52,7 @@ impl Mempool {
         let fee: u64 = 0;
         // todo
         for (txid, tx) in &self.transactions {
-            if tx.is_coinbase() || !tx.is_final(){
+            if tx.is_coinbase() || !tx.is_final() {
                 continue;
             }
         }

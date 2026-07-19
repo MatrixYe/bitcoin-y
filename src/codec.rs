@@ -11,8 +11,6 @@ use crate::errors::CError;
 use crate::transaction::{OutPoint, Transaction, TxIn, TxOut};
 use crate::uint256::Uint256;
 
-
-
 /// 将整数编码为 Bitcoin CompactSize 格式。
 pub fn serialize_compact_size(value: u64) -> Vec<u8> {
     let mut buffer = Vec::new();

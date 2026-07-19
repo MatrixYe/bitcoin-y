@@ -19,11 +19,14 @@
 //!   -> AddToBlockIndex()
 //!   -> SetBestChain()
 //! ```
+
 use crate::block::Block;
 use crate::node::NodeState;
 use crate::script::builder::StandardScript;
 use crate::transaction::Transaction;
 use crate::wallet::key::PubKey;
+use std::cmp::{max, min};
+use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -40,42 +43,92 @@ pub enum MiningError {
     #[error("best index hash not found")]
     BestIndexNotFound,
 
+    #[error("invalid chain params: {msg}")]
+    InvalidChainParams { msg: String },
+
+    #[error("block value overflow")]
+    BlockValueOverflow,
+
+    #[error("block timestamp overflow")]
+    InvalidTime,
 }
 
-fn create_new_block<S>(state: &NodeState<S>, pub_key: PubKey) -> Result<Block, MiningError> {
+/// 创建一个基于当前最佳链 tip 的候选区块。
+///
+/// 对应原版 `CreateNewBlock` 的核心流程：先放入 coinbase，再收集 mempool 交易，
+/// 最后根据交易集合和前序区块索引初始化区块头字段。
+pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, MiningError> {
+    let best_index = state
+        .chain
+        .best_index()
+        .ok_or(MiningError::BestIndexNotFound)?;
+    let next_height = best_index.height + 1;
+    let (txs, total_fees) = state.mempool.collect_for_block();
 
-    // 获取当前最佳链的最新高度
-    let height = state.chain.best_height().ok_or(MiningError::BestIndexNotFound)?;
-    // 创建待选区块
     let mut pblock = Block::new();
-
-    // 创建一coinbase交易
     let mut coinbase = Transaction::new_coinbase();
-    let script_pubkey = StandardScript::p2pk(pub_key).map_err(|e| MiningError::InvalidCoinbase { msg: e.to_string() })?;
-    coinbase.vout[0].script_pubkey = script_pubkey;
-    // Add our coinbase tx as first transaction
+    coinbase.vout[0].script_pubkey = StandardScript::p2pk(pub_key)
+        .map_err(|e| MiningError::InvalidCoinbase { msg: e.to_string() })?;
+
     pblock.push_tx(coinbase);
+    pblock.push_txs(txs);
+    pblock
+        .update_coinbase_value(get_block_value(&state, total_fees, next_height)?)
+        .map_err(|e| MiningError::InvalidCoinbase { msg: e.to_string() })?;
 
-    // Collect memory pool transactions into the block
-    let (txs, fee) = state.mempool.collect_for_block();
-    let subsidy = (state.params.subsidy_initial >> height) / state.params.subsidy_halving_interval;
-    let block_value = fee + subsidy;
-
-    pblock.update_coinbase_value(block_value).map_err(|e| MiningError::InvalidCoinbase { msg: e.to_string() })?;
-
-    // 初始化区块头数据
-    pblock.set_prev_block(state.chain.best_hash().ok_or(MiningError::BestIndexNotFound)?); // 前序区块哈希
-    pblock.set_merkle_root(pblock.build_merkle_root()); // 新区块默克尔树根
-    pblock.set_time(0); //todo 填充新区块时间
-    pblock.set_bits(0); //todo 填充新区块难度压缩值
-    pblock.set_nonce(0); // 填充nonce搜索起始点，默认为0
+    pblock.set_prev_block(best_index.hash());
+    pblock.set_merkle_root(pblock.build_merkle_root());
+    pblock.set_time(get_block_time(state)?);
+    pblock.set_bits(get_next_work_required(best_index));
+    pblock.set_nonce(0);
     Ok(pblock)
 }
 
-fn updata_extra_nonce(block: Block, height: u32) {
+/// 计算区块价值：区块补贴 + 当前候选区块打包交易产生的手续费。
+fn get_block_value(state: &NodeState, total_fees: u64, height: u32) -> Result<u64, MiningError> {
+    // 减半周期无法为0
+    if state.params.subsidy_halving_interval == 0 {
+        return Err(MiningError::InvalidChainParams {
+            msg: "subsidy halving interval must be greater than zero".to_string(),
+        });
+    }
+    // 计算衰减次数
+    let halvings = height as u64 / state.params.subsidy_halving_interval;
+    // 计算当前补贴
+    let subsidy = state
+        .params
+        .subsidy_initial
+        .checked_shr(halvings as u32)
+        .unwrap_or(0);
+    // 价值=区块补贴+手续费累计
+    let value = total_fees
+        .checked_add(subsidy)
+        .ok_or(MiningError::BlockValueOverflow);
+    value
+}
+
+/// 当前阶段先沿用父区块难度，后续替换为 `pow::get_next_work_required`。
+fn get_next_work_required(best_index: &crate::chain::BlockIndex) -> u32 {
+    best_index.bits
+}
+
+/// 当前阶段使用 `max(GetMedianTimePast() + 1, now)` 近似原版 `max(GetMedianTimePast()+1, GetAdjustedTime())`。
+/// - `GetMedianTimePast` 获取最佳链上的最近的11个区块的时间中位数，减少单个异常时间戳的影响
+/// - `GetAdjustedTime` 是获取系统自适应时间，它不是单纯的本机时间，而是本机当前时间+根据其他节点时间样本计算出的 nTimeOffset，因为逻辑繁琐一下子写不完，暂时先用本机当前时间代替
+fn get_block_time(state: &NodeState) -> Result<u32, MiningError> {
+    let median_time = state.chain.get_median_time_past().ok_or(MiningError::InvalidTime)?;
+    let adjusted_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let adjusted_time = min(u32::MAX as u64, adjusted_time) as u32;
+    let t = max(median_time.saturating_add(1), adjusted_time);
+    Ok(t)
+}
+
+fn updata_extra_nonce(_block: Block, _height: u32) {
     todo!();
 }
 // 拓展nonce搜索空间
 fn increment_extra_nonce() {
-    unimplemented!();
+    todo!()
 }

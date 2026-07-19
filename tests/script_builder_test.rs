@@ -1,6 +1,6 @@
 use bitcoin_y::bignum::BigNum;
-use bitcoin_y::script::error::ScriptError;
 use bitcoin_y::script::builder::ScriptBuilder;
+use bitcoin_y::script::error::ScriptError;
 use bitcoin_y::script::opcode::{Crypto, OpCode};
 
 #[test]

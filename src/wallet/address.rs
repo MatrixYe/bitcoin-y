@@ -32,7 +32,6 @@ pub enum AddressError {
     UnsupportedVersion(u8),
 }
 
-
 /// 公钥哈希 PubKeyHash，固定20字节
 ///
 ///
@@ -112,7 +111,8 @@ impl Address {
             return Err(AddressError::InvalidChecksum);
         }
         // 网络版本
-        let network = Network::from_p2pkh_prefix(network).ok_or(AddressError::UnsupportedVersion(payload[0]))?;
+        let network = Network::from_p2pkh_prefix(network)
+            .ok_or(AddressError::UnsupportedVersion(payload[0]))?;
 
         // 公钥哈希
         let mut pubkey_hash = [0u8; 20];
@@ -163,5 +163,3 @@ pub fn check_address(s: &str) -> bool {
         false
     }
 }
-
-
