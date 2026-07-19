@@ -349,7 +349,7 @@ impl BlockTree {
     }
 
     /// 按高度获取当前最佳链上的区块 hash。
-    pub fn active_hash_at_height(&self, height: u32) -> Option<Uint256> {
+    pub fn get_active_hash_at_height(&self, height: u32) -> Option<Uint256> {
         // self.active_chain.get(height as usize).clone()
         // 等价与 `self.active_chain.get(height as usize).map(|x| *x)`
         self.active_chain.get(height as usize).copied()
@@ -482,7 +482,7 @@ impl BlockTree {
         }
         // 再判断在不在最佳链上
         let index = index.unwrap();
-        self.active_hash_at_height(index.height) == Some(hash)
+        self.get_active_hash_at_height(index.height) == Some(hash)
     }
 
     //noinspection ALL

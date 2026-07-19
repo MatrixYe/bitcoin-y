@@ -12,6 +12,7 @@
 //! - 。。。
 //!
 
+use crate::bignum::BigNum;
 use crate::chain::{BlockIndex, BlockTree};
 use crate::parms::ChainParams;
 
@@ -29,16 +30,37 @@ use crate::parms::ChainParams;
 /// 6. 返回难度指标的压缩值 `bnNew.GetCompact()`
 
 pub fn get_next_work_required(chain: &BlockTree, last: &BlockIndex, params: &ChainParams) -> u32 {
-    let tt = params.target_timespan;
-    let ts = params.target_spacing;
+    let target_spacing = params.target_spacing;
+    let target_timespan = params.target_timespan;
 
-    let interval = ts / tt;
+
+    let interval = target_timespan / target_spacing;
 
     if last.is_genesis() {
         return params.pow_limit;
     }
 
-    todo!()
+    if (last.height + 1) % interval != 0 {
+        return last.bits;
+    }
+    let first = last.height.saturating_sub(interval + 1); // 防止溢出，高度不够时，停在0
+    let first = chain.get_active_hash_at_height(first);
+    let first = chain.get(first.unwrap()).unwrap();
+    let mut actual_time_span = last.time - first.time;
+
+    if actual_time_span > target_timespan.saturating_mul(4) {
+        actual_time_span = target_timespan.saturating_mul(4);
+    }
+    if actual_time_span < target_timespan.saturating_div(4) {
+        actual_time_span = target_timespan.saturating_div(4);
+    }
+
+    let mut new_target = BigNum::set_compact(last.bits);
+    new_target *= BigNum::from_u32(actual_time_span);
+    new_target /= BigNum::from_u32(target_timespan);
+
+    // 返回目标压缩值
+    new_target.to_u32().unwrap()
 }
 
 

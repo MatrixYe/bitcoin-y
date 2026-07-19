@@ -54,8 +54,8 @@ fn block_tree_tracks_active_chain_and_best_tip() {
     assert_eq!(tree.best_hash(), Some(block1_hash));
     assert_eq!(tree.best_height(), Some(1));
     assert_eq!(tree.active_chain(), &[genesis_hash, block1_hash]);
-    assert_eq!(tree.active_hash_at_height(0), Some(genesis_hash));
-    assert_eq!(tree.active_hash_at_height(1), Some(block1_hash));
+    assert_eq!(tree.get_active_hash_at_height(0), Some(genesis_hash));
+    assert_eq!(tree.get_active_hash_at_height(1), Some(block1_hash));
     assert_eq!(tree.get(genesis_hash).unwrap().next, Some(block1_hash));
     assert!(tree.is_in_best_chain(genesis_hash));
     assert!(tree.is_in_best_chain(block1_hash));
