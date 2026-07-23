@@ -32,6 +32,28 @@ impl Uint256 {
     pub const ZERO: Self = Self([0; WIDTH]);
     pub const ONE: Self = Self([1, 0, 0, 0, 0, 0, 0, 0]);
     pub const MAX: Self = Self([u32::MAX; WIDTH]);
+    // 挖矿的目标值限制，
+    pub const LIMIT: Self = Self([
+        0xffff_ffff,
+        0xffff_ffff,
+        0xffff_ffff,
+        0xffff_ffff,
+        0xffff_ffff,
+        0xffff_ffff,
+        0xffff_ffff,
+        0x0000_0000,
+    ]);
+
+    pub const GENESIS: Self = Self([
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0xffff_0000,
+        0x0000_0000,
+    ]);
 }
 
 impl Uint256 {
@@ -161,8 +183,8 @@ impl Uint256 {
         let negative = mantissa != 0 && sign;
         let overflow = mantissa != 0
             && (exponent > 34
-                || (mantissa > 0xff && exponent > 33)
-                || (mantissa > 0xffff && exponent > 32));
+            || (mantissa > 0xff && exponent > 33)
+            || (mantissa > 0xffff && exponent > 32));
 
         (target, negative, overflow)
     }

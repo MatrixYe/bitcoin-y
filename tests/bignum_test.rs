@@ -6,6 +6,9 @@
 ///
 /// @Description: null
 use bitcoin_y::bignum::{BigNum, BigNumError};
+use bitcoin_y::uint256::Uint256;
+use rusqlite::fallible_iterator::FallibleIterator;
+
 
 #[test]
 fn test_is_negative() {
@@ -294,4 +297,52 @@ fn test_equal() {
 fn test_x() {
     let a = BigNum::from_i32(0x1d00ffff);
     println!("{}", a.to_i64().unwrap());
+    println!("{:?}", a.to_uint256().to_hex());
+    println!("{:?}", a.to_uint256());
 }
+
+#[test]
+fn test_target1() {
+    let nbits: u32 = 0x1d00ffff;
+    let nbits: u32 = 486604799;
+    println!("nbits {:?}", nbits);
+    let target = BigNum::set_compact(nbits);
+    println!("target {:?}", target);
+    println!("target.to_uint256 {:?}", target.to_uint256());
+    println!("target.to_uint256().to_hex() {:?}", target.to_uint256().to_hex());
+}
+
+#[test]
+fn test_target2() {
+    let target = Uint256::MAX >> 32;
+    println!("{:?}", target.to_hex());
+
+    let i = target.get_compact(false);
+    let num = BigNum::from_uint256(target);
+
+    println!("{:?}", num.get_compact());
+    println!("0x{:08x}", num.get_compact());
+}
+
+#[test]
+fn test_target3() {
+    let target1 = Uint256::MAX >> 32;
+    let target2 = Uint256::from_hex("0x00000000ffff0000000000000000000000000000000000000000000000000000").unwrap();
+
+    println!("{:?}", target1.to_hex());
+    println!("{:?}", target2.to_hex());
+
+    let bn1 = BigNum::from_uint256(target1);
+    let bn2 = BigNum::from_uint256(target2);
+
+    println!("{:?}", bn1);
+    println!("{:?}", bn2);
+
+    let nbit1 = bn1.get_compact();
+    let nbit2 = bn2.get_compact();
+
+    println!("{:?}", nbit1);
+    println!("{:?}", nbit2);
+}
+
+

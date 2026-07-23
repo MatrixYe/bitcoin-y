@@ -20,9 +20,11 @@
 //!   -> SetBestChain()
 //! ```
 
-use crate::block::Block;
+use crate::block::{Block, BlockError};
 use crate::node::NodeState;
+use crate::pow::{get_next_work_required, PowError};
 use crate::script::builder::StandardScript;
+use crate::script::error::ScriptError;
 use crate::transaction::Transaction;
 use crate::wallet::key::PubKey;
 use std::cmp::{max, min};
@@ -31,6 +33,15 @@ use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MiningError {
+    #[error("block error: {0}")]
+    BlockError(#[from] BlockError),
+
+    #[error("pow error {0}")]
+    PowError(#[from] PowError),
+
+    #[error("script error {0}")]
+    ScriptError(#[from] ScriptError),
+
     #[error("unknown block index")]
     UnknownBlockIndex,
 
@@ -67,19 +78,15 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
 
     let mut pblock = Block::new();
     let mut coinbase = Transaction::new_coinbase();
-    coinbase.vout[0].script_pubkey = StandardScript::p2pk(pub_key)
-        .map_err(|e| MiningError::InvalidCoinbase { msg: e.to_string() })?;
+    coinbase.vout[0].script_pubkey = StandardScript::p2pk(pub_key)?;
 
     pblock.push_tx(coinbase);
     pblock.push_txs(txs);
-    pblock
-        .update_coinbase_value(get_block_value(&state, total_fees, next_height)?)
-        .map_err(|e| MiningError::InvalidCoinbase { msg: e.to_string() })?;
-
+    pblock.update_coinbase_value(get_block_value(&state, total_fees, next_height)?)?;
     pblock.set_prev_block(best_index.hash());
     pblock.set_merkle_root(pblock.build_merkle_root());
     pblock.set_time(get_block_time(state)?);
-    pblock.set_bits(get_next_work_required(best_index));
+    pblock.set_bits(get_nbits(state)?);
     pblock.set_nonce(0);
     Ok(pblock)
 }
@@ -108,8 +115,17 @@ fn get_block_value(state: &NodeState, total_fees: u64, height: u32) -> Result<u6
 }
 
 /// 当前阶段先沿用父区块难度，后续替换为 `pow::get_next_work_required`。
-fn get_next_work_required(best_index: &crate::chain::BlockIndex) -> u32 {
-    best_index.bits
+fn get_nbits(state: &NodeState) -> Result<u32, MiningError> {
+    // let x = &state.chain;
+    // let y = state.chain.best_index().ok_or(MiningError::BestIndexNotFound)?;
+    // let z = &state.params;
+
+    let nbits = get_next_work_required(
+        &state.chain,
+        state.chain.best_index().ok_or(MiningError::BestIndexNotFound)?,
+        &state.params,
+    )?;
+    Ok(nbits)
 }
 
 /// 当前阶段使用 `max(GetMedianTimePast() + 1, now)` 近似原版 `max(GetMedianTimePast()+1, GetAdjustedTime())`。
