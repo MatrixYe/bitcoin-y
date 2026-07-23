@@ -3,14 +3,14 @@
 /// 公钥地址版本号，主网为 `0x00`。
 pub const PUBKEY_VERSION: u8 = 0x00;
 
-/// 最大区块大小，当前实验实现保持为 1 MB。
-pub const MAX_BLOCK_SIZE: usize = 1024 * 1024;
+/// 共识/接收区块时的最大大小；
+pub const MAX_BLOCK_SIZE: usize = 1000000;
+/// 本节点挖矿时默认生成区块的大小上限。
+pub const MAX_BLOCK_SIZE_GEN: usize = MAX_BLOCK_SIZE / 2;
+
 
 /// 1 BTC = 100,000,000 聪。
 pub const COIN: u64 = 100_000_000;
-//static const int64 COIN = 100000000;
-// Max=2100*10000*10^8=21,000,000 * 10^8=2*10^7 * 1 * 10^8 =2 * 10^15
-
 /// 区块补贴初始值 50btc
 pub const SUBSIDY_ORIGINAL: u64 = 50 * COIN;
 

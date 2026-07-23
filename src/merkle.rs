@@ -48,6 +48,13 @@ pub struct MerkleProof {
     siblings: Vec<Uint256>,
 }
 
+impl MerkleTree {
+    pub fn from_txs(layer: Vec<Uint256>) -> Self {
+        todo!("通过先构建默克尔了树的方式为基础，再得到默克尔根和默克尔路径，默克尔证明")
+    }
+}
+
+
 impl MerkleProof {
     pub fn tx_index(&self) -> usize {
         self.tx_index

@@ -7,35 +7,34 @@
 //! @Description: 区块数据结构
 
 use crate::bignum::BigNum;
+use crate::codec::serialize_block;
 use crate::codec::serialize_block_header;
+use crate::cons::MAX_BLOCK_SIZE;
 use crate::hash::sha256d;
 use crate::merkle::compute_merkle_root;
 use crate::transaction::Transaction;
 use crate::uint256::Uint256;
 use thiserror::Error;
-
+use crate::pow::check_proof_of_work;
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BlockError {
-    #[error("InvalidTransaction")]
-    InvalidTransaction,
+    #[error("Invalid params:{params}")]
+    InvalidParams { params: String },
 
-    #[error("InvalidVersion")]
-    InvalidVersion,
+    // 交易集第一个必须为coinbase Tx
+    #[error("coinbase tx must be first tx in block vtx ")]
+    MissingCoinbase,
 
-    #[error("InvalidCoinbase")]
-    InvalidCoinbase,
-
-    #[error("InvalidTimestamp")]
-    InvalidTimestamp,
-
-    #[error("InvalidDifficulty")]
-    InvalidDifficulty,
-
-    #[error("InvalidNonce")]
-    InvalidNonce,
-
+    // 空白的交易集合，最小为1
     #[error("EmptyTxData")]
     EmptyTxData,
+
+    // 区块大小爆炸
+    #[error("The maximum block size is {maximum}, but the actual size is {actual}.")]
+    BlockSizeOverflow {
+        maximum: usize,
+        actual: usize,
+    },
 }
 
 /// - version       4 字节
@@ -79,7 +78,29 @@ pub struct Block {
     pub header: BlockHeader,
     pub vtx: Vec<Transaction>,
 }
+impl BlockHeader {
+    pub fn new() -> Self {
+        BlockHeader {
+            version: 1,
+            prev_block: Uint256::ZERO,
+            merkle_root: Uint256::ZERO,
+            time: 0,
+            bits: 0,
+            nonce: 0,
+        }
+    }
 
+    /// 计算传统 Bitcoin 区块头哈希。现代比特币的隔离见证方案把区块结构搞得乱七八糟的，这里不实现了。
+    pub fn hash(&self) -> Uint256 {
+        let head_ser = self.serialize();
+        sha256d(&head_ser).into()
+    }
+
+    /// 区块头序列化
+    pub fn serialize(&self) -> Vec<u8> {
+        serialize_block_header(self).to_vec()
+    }
+}
 impl Block {
     pub fn new() -> Block {
         Block {
@@ -87,16 +108,11 @@ impl Block {
             vtx: Vec::new(),
         }
     }
-
     pub fn set_version(&mut self, version: i32) {
         self.header.version = version;
     }
-    pub fn set_prev_block(&mut self, prev_block: Uint256) {
-        self.header.prev_block = prev_block;
-    }
-    pub fn set_merkle_root(&mut self, merkle_root: Uint256) {
-        self.header.merkle_root = merkle_root;
-    }
+    pub fn set_prev_block(&mut self, prev_block: Uint256) { self.header.prev_block = prev_block; }
+    pub fn set_merkle_root(&mut self, merkle_root: Uint256) { self.header.merkle_root = merkle_root; }
     pub fn set_time(&mut self, time: u32) {
         self.header.time = time;
     }
@@ -120,36 +136,13 @@ impl Block {
             return Err(BlockError::EmptyTxData);
         }
         if !self.vtx[0].is_coinbase() {
-            return Err(BlockError::InvalidCoinbase);
+            return Err(BlockError::MissingCoinbase);
         }
         self.vtx[0].vout[0].value = value;
         Ok(value)
     }
 }
 
-impl BlockHeader {
-    pub fn new() -> Self {
-        BlockHeader {
-            version: 1,
-            prev_block: Uint256::ZERO,
-            merkle_root: Uint256::ZERO,
-            time: 0,
-            bits: 0,
-            nonce: 0,
-        }
-    }
-
-    /// 计算传统 Bitcoin 区块头哈希。
-    pub fn hash(&self) -> Uint256 {
-        let head_ser = self.serialize();
-        sha256d(&head_ser).into()
-    }
-
-    /// 区块头序列化
-    pub fn serialize(&self) -> Vec<u8> {
-        serialize_block_header(self).to_vec()
-    }
-}
 
 impl Block {
     /// 获取区块哈希，即区块头哈希
@@ -158,9 +151,10 @@ impl Block {
     }
 
     /// 计算区块头的默克尔树根
-    pub fn build_merkle_root(&self) -> Uint256 {
+    /// 备注：计算默克尔树根和构建默克尔树是两码事
+    pub fn get_merkle_root(&self) -> Uint256 {
         let txids: Vec<Uint256> = self.vtx.iter().map(|x| x.txid()).collect();
-        compute_merkle_root(txids)
+        compute_merkle_root(txids) // 引用merkle.rs的函数
     }
 
     /// 计算此区块的工作量 `(CBigNum(1)<<256) / (bnTarget+1)`
@@ -198,5 +192,33 @@ impl Block {
             true => false,
             false => hash <= target,
         }
+    }
+
+    /// # 区块的基础合法性检查
+    /// 参考：main.cpp bool CBlock::CheckBlock()
+    /// > These are checks that are independent of context
+    /// > that can be verified before saving an orphan block.
+    ///
+    ///  主要做“区块自身格式和基本内容是否正确”的检查
+    /// 这些检查与上下文无关，可在保存孤儿区块之前进行验证。与上下文相关的检查在后续`AcceptBlock`、`ConnectBlock`、`SetBestChain`中完成
+    pub fn check_block(&self) -> Result<(), BlockError> {
+        // 大小检查
+        if self.vtx.is_empty() {
+            return Err(BlockError::EmptyTxData);
+        }
+
+        if (self.vtx.len() > MAX_BLOCK_SIZE || serialize_block(self).len() > MAX_BLOCK_SIZE) {
+            return Err(BlockError::BlockSizeOverflow {
+                maximum: MAX_BLOCK_SIZE,
+                actual: self.vtx.len(),
+            });
+        }
+
+        // check_proof_of_work()
+
+
+
+
+        Ok(())
     }
 }

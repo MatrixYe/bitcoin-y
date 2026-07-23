@@ -84,7 +84,7 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
     pblock.push_txs(txs);
     pblock.update_coinbase_value(get_block_value(&state, total_fees, next_height)?)?;
     pblock.set_prev_block(best_index.hash());
-    pblock.set_merkle_root(pblock.build_merkle_root());
+    pblock.set_merkle_root(pblock.get_merkle_root());
     pblock.set_time(get_block_time(state)?);
     pblock.set_bits(get_nbits(state)?);
     pblock.set_nonce(0);

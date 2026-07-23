@@ -15,8 +15,9 @@
 use crate::bignum::BigNum;
 use crate::chain::{BlockIndex, BlockTree};
 use crate::parms::ChainParams;
+use crate::uint256::Uint256;
+use log::error;
 use thiserror::Error;
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum PowError {
     #[error("invalid chain params")]
@@ -83,4 +84,26 @@ pub fn get_next_work_required(chain: &BlockTree, last: &BlockIndex, params: &Cha
 
     // 返回目标压缩值
     Ok(new_target.get_compact())
+}
+
+
+/// # 检测工作量是否符合标准
+/// 1. 检查 nbit 是否符合标准：
+/// 	1. 必须大于 0
+/// 	2. 必须小于等于限制值
+/// 2. 检查区块哈希和目标值，必须 hash<=target
+pub fn check_proof_of_work(hash: Uint256, nbits: u32, pow_target_limit: Uint256) -> bool {
+    let bn_target = BigNum::set_compact(nbits);
+    let bn_target_limit = BigNum::from_uint256(pow_target_limit);
+
+    if bn_target < BigNum::ZERO || bn_target > bn_target_limit {
+        error!("CheckProofOfWork() : nBits below minimum work");
+        return false;
+    }
+
+    if hash > bn_target.to_uint256() {
+        error!("CheckProofOfWork() : hash doesn't match nBits");
+        return false;
+    }
+    true
 }
