@@ -26,11 +26,10 @@ use crate::pow::{get_next_work_required, PowError};
 use crate::script::builder::StandardScript;
 use crate::script::error::ScriptError;
 use crate::transaction::Transaction;
+use crate::utils::get_adjusted_time;
 use crate::wallet::key::PubKey;
-use std::cmp::{max, min};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::cmp::max;
 use thiserror::Error;
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MiningError {
     #[error("block error: {0}")]
@@ -133,10 +132,7 @@ fn get_nbits(state: &NodeState) -> Result<u32, MiningError> {
 /// - `GetAdjustedTime` 是获取系统自适应时间，它不是单纯的本机时间，而是本机当前时间+根据其他节点时间样本计算出的 nTimeOffset，因为逻辑繁琐一下子写不完，暂时先用本机当前时间代替
 fn get_block_time(state: &NodeState) -> Result<u32, MiningError> {
     let median_time = state.chain.get_median_time_past().ok_or(MiningError::InvalidTime)?;
-    let adjusted_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
-    let adjusted_time = min(u32::MAX as u64, adjusted_time) as u32;
+    let adjusted_time = get_adjusted_time();
     let t = max(median_time.saturating_add(1), adjusted_time);
     Ok(t)
 }

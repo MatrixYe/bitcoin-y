@@ -1,13 +1,21 @@
 // 全局共识常量。
 
+use crate::uint256::Uint256;
+
 /// 公钥地址版本号，主网为 `0x00`。
 pub const PUBKEY_VERSION: u8 = 0x00;
 
 /// 共识/接收区块时的最大大小；
 pub const MAX_BLOCK_SIZE: usize = 1000000;
+
+/// 区块内允许的最大签名检查操作数量。原版定义为 `MAX_BLOCK_SIZE / 50`。
+pub const MAX_BLOCK_SIGOPS: usize = MAX_BLOCK_SIZE / 50;
+
+/// 交易金额最大面额
+pub const MAX_MONEY: u64 = 21000000 * COIN;
+
 /// 本节点挖矿时默认生成区块的大小上限。
 pub const MAX_BLOCK_SIZE_GEN: usize = MAX_BLOCK_SIZE / 2;
-
 
 /// 1 BTC = 100,000,000 聪。
 pub const COIN: u64 = 100_000_000;
@@ -22,3 +30,6 @@ pub const COINBASE_MATURITY: usize = 100;
 
 /// 当前实验链的 coinbase 奖励。
 pub const COINBASE_REWARD: u64 = 1_000_000;
+
+/// 工作量目标值最大值，对应难度最小值
+pub const POW_TARGT_LIMIT: Uint256 = Uint256::LIMIT;

@@ -8,14 +8,41 @@
 
 use crate::codec::deserialize_transaction;
 use crate::codec::serialize_transaction;
+use crate::cons::{MAX_BLOCK_SIZE, MAX_MONEY};
 use crate::errors::CError;
 use crate::hash::sha256d;
-use crate::script::Script;
+use crate::script::{count_sig_ops, Script};
 use crate::uint256::Uint256;
+use thiserror::Error;
 
 // 原版语义中，coinbase的交易输入的前驱，n =-1,因为是无符号整数，所有实际为u32::MAX
 // coinbase 输入使用的特殊输出索引 0xffff_ffff。反正不是0，参考源忘了，记得查过一次。
 const COINBASE_N: u32 = u32::MAX;
+
+
+#[derive(Debug, Clone, Eq, PartialEq, Error)]
+pub enum TransactionError {
+    #[error("transaction error at vtx[{index}]: {source}")]
+    Indexed {
+        index: usize,
+        source: Box<TransactionError>,
+    },
+
+    #[error("tx.vin or tx.vout is empty")]
+    EmptyVinOrVout,
+
+    #[error("The transaction size is too large.")]
+    TxSizeTooLarge,
+
+    #[error("The transaction value is too large,> MAX_NONEY")]
+    TxValueOverflow,
+
+    #[error("The coinbase tx script size except in [2,100],but {actual_size}")]
+    CoinbaseSciptSizeLimit { actual_size: usize },
+
+    #[error("prevout of transaction is null")]
+    TxPrevoutIsNull,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct OutPoint {
@@ -100,25 +127,71 @@ impl Transaction {
 
         coinbase
     }
+
+    /// 交易检测(无关上下文)
+    pub fn check_transaction(&self) -> Result<(), TransactionError> {
+        // 输入和输出不能为空
+        if self.vin.is_empty() || self.vout.is_empty() {
+            return Err(TransactionError::EmptyVinOrVout);
+        }
+        // 2. 交易大小不能超过`MAX_BLOCK_SIZE`：
+        if self.serialize().len() > MAX_BLOCK_SIZE {
+            return Err(TransactionError::TxSizeTooLarge);
+        }
+
+        //每个输出金额不能为负，不能超过 MAX_MONEY：
+        let mut total_value = 0u64;
+        for out in self.vout.iter() {
+            if out.value > MAX_MONEY {
+                return Err(TransactionError::TxValueOverflow);
+            }
+            // fix: check_transaction 的金额累加溢出问题，用 checked_add 避免 u64 溢出后绕回
+            // 原版金额采用的是i64,没有必要，这里没有按中本聪的写法来
+            total_value = total_value
+                .checked_add(out.value)
+                .ok_or(TransactionError::TxValueOverflow)?;
+            if total_value > MAX_MONEY {
+                return Err(TransactionError::TxValueOverflow);
+            }
+        }
+
+        // 如果是coinbase 交易，需要检查输入脚本的长度在2～100 之间
+        if self.is_coinbase() {
+            let actual_size = self.vin[0].script_sig.len();
+            if actual_size < 2 || actual_size > 100 {
+                return Err(TransactionError::CoinbaseSciptSizeLimit { actual_size });
+            }
+        } else {
+            // 如果是普通交易，那么所有交易输入的前序交易都不可为空
+            for vin in self.vin.iter() {
+                if vin.prevout.is_null() {
+                    return Err(TransactionError::TxPrevoutIsNull);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// 统计交易输入脚本和输出脚本中的签名检查操作数量。
+    pub fn get_sig_op_count(&self) -> usize {
+        let input_sig_ops = self.vin.iter().map(|txin| count_sig_ops(&txin.script_sig)).sum::<usize>();
+        let output_sig_ops = self.vout.iter().map(|txout| count_sig_ops(&txout.script_pubkey)).sum::<usize>();
+        input_sig_ops + output_sig_ops
+    }
 }
 
 impl OutPoint {
-    pub const NULL: Self = Self {
-        hash: Uint256::ZERO, // coinbase pre hash
-        n: COINBASE_N,
-    };
-
+    pub const NULL: Self = Self::set_null();
+    pub fn null() -> Self {
+        Self::set_null()
+    }
     pub const fn set_null() -> Self {
         Self {
             hash: Uint256::ZERO, // coinbase pre hash
             n: COINBASE_N,
         }
     }
-
-    pub fn null() -> Self {
-        Self::set_null()
-    }
-
+    // 判断是否为NULL
     pub fn is_null(&self) -> bool {
         self.hash == Uint256::ZERO && self.n == COINBASE_N
     }

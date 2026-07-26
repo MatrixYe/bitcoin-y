@@ -9,29 +9,57 @@
 use crate::bignum::BigNum;
 use crate::codec::serialize_block;
 use crate::codec::serialize_block_header;
-use crate::cons::MAX_BLOCK_SIZE;
+use crate::cons::{MAX_BLOCK_SIGOPS, MAX_BLOCK_SIZE, POW_TARGT_LIMIT};
 use crate::hash::sha256d;
 use crate::merkle::compute_merkle_root;
-use crate::transaction::Transaction;
+use crate::pow::{check_proof_of_work, PowError};
+use crate::transaction::{Transaction, TransactionError};
 use crate::uint256::Uint256;
+use crate::utils::get_adjusted_time;
 use thiserror::Error;
-use crate::pow::check_proof_of_work;
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BlockError {
-    #[error("Invalid params:{params}")]
-    InvalidParams { params: String },
-
     // 交易集第一个必须为coinbase Tx
-    #[error("coinbase tx must be first tx in block vtx ")]
+    #[error("Coinbase tx must be first tx in block vtx ")]
     MissingCoinbase,
 
+    #[error("Coinbase tx too many ")]
+    TooManyCoinbase,
+
     // 空白的交易集合，最小为1
-    #[error("EmptyTxData")]
+    #[error("Transactions within the block cannot be empty.")]
     EmptyTxData,
 
     // 区块大小爆炸
     #[error("The maximum block size is {maximum}, but the actual size is {actual}.")]
     BlockSizeOverflow {
+        maximum: usize,
+        actual: usize,
+    },
+
+    // 默克尔树根对不上
+    #[error("block's merkle tree root not equal cal by txs")]
+    UnmatchedMerkleRoot { expect: Uint256, actual: Uint256 },
+
+    // 工作量相关错误
+    #[error("pow error: {0}")]
+    PowError(#[from] PowError),
+
+    #[error("transaction error: {0}")]
+    TxError(#[from] TransactionError),
+
+    // 区块时间太晚了，大幅度超过未来时间
+    #[error("CheckBlock() : block timestamp {block_time} is too far in the future {allow_future_time}"
+    )]
+    TimeTooFar { block_time: u32, allow_future_time: u32 },
+
+    // 区块时间太早，超过了前序区块
+    #[error("AcceptBlock() : block's timestamp is too early")]
+    TimeTooEarly,
+
+    #[error("CheckBlock() : too many sigops, max {maximum}, actual {actual}")]
+    TooManySigOps {
         maximum: usize,
         actual: usize,
     },
@@ -122,6 +150,13 @@ impl Block {
     pub fn set_nonce(&mut self, nonce: u32) {
         self.header.nonce = nonce;
     }
+
+
+    pub fn get_block_time(&self) -> u32 {
+        self.header.time
+    }
+
+
     // 添加一笔交易
     pub fn push_tx(&mut self, tx: Transaction) {
         self.vtx.push(tx);
@@ -155,6 +190,11 @@ impl Block {
     pub fn get_merkle_root(&self) -> Uint256 {
         let txids: Vec<Uint256> = self.vtx.iter().map(|x| x.txid()).collect();
         compute_merkle_root(txids) // 引用merkle.rs的函数
+    }
+
+    /// 统计区块内所有交易脚本的签名检查操作数量。
+    pub fn get_sig_op_count(&self) -> usize {
+        self.vtx.iter().map(|tx| tx.get_sig_op_count()).sum()
     }
 
     /// 计算此区块的工作量 `(CBigNum(1)<<256) / (bnTarget+1)`
@@ -202,23 +242,62 @@ impl Block {
     ///  主要做“区块自身格式和基本内容是否正确”的检查
     /// 这些检查与上下文无关，可在保存孤儿区块之前进行验证。与上下文相关的检查在后续`AcceptBlock`、`ConnectBlock`、`SetBestChain`中完成
     pub fn check_block(&self) -> Result<(), BlockError> {
-        // 大小检查
+        // 1. 大小检查
         if self.vtx.is_empty() {
             return Err(BlockError::EmptyTxData);
         }
 
-        if (self.vtx.len() > MAX_BLOCK_SIZE || serialize_block(self).len() > MAX_BLOCK_SIZE) {
+        let serialized_size = serialize_block(self).len();
+        if serialized_size > MAX_BLOCK_SIZE {
             return Err(BlockError::BlockSizeOverflow {
                 maximum: MAX_BLOCK_SIZE,
-                actual: self.vtx.len(),
+                actual: serialized_size,
+            });
+        }
+        // 2. 工作量检查
+        check_proof_of_work(self.hash(), self.header.bits, POW_TARGT_LIMIT)?;
+
+        // 3.时间检查
+        let block_time = self.get_block_time();
+        let allow_future_time = get_adjusted_time() + 2 * 60 * 60;
+        if block_time > allow_future_time {
+            return Err(BlockError::TimeTooFar { block_time, allow_future_time });
+        }
+        // 3.交易检测
+        // - 首交易必须为coinbase;
+        // - 除了首交易，其余交易都不可以为coinbase;
+        // - 交易本身需要检测合法
+        for (index, tx) in self.vtx.iter().enumerate() {
+            if index == 0 && !tx.is_coinbase() {
+                return Err(BlockError::MissingCoinbase);
+            }
+
+            if index != 0 && tx.is_coinbase() {
+                return Err(BlockError::TooManyCoinbase);
+            }
+            // 逐笔检查交易自身格式
+            tx.check_transaction().map_err(|source| TransactionError::Indexed {
+                index,
+                source: Box::new(source),
+            })?
+        }
+        // 4. 检测累计脚本操作码数量是否超过MAX_BLOCK_SIGOPS
+        let sig_op_count = self.get_sig_op_count();
+        if sig_op_count > MAX_BLOCK_SIGOPS {
+            return Err(BlockError::TooManySigOps {
+                maximum: MAX_BLOCK_SIGOPS,
+                actual: sig_op_count,
             });
         }
 
-        // check_proof_of_work()
-
-
-
-
+        // 5. 检测默克尔树是否匹配
+        let actual_merkle_root = self.get_merkle_root();
+        if self.header.merkle_root != actual_merkle_root {
+            return Err(BlockError::UnmatchedMerkleRoot {
+                expect: self.header.merkle_root,
+                actual: actual_merkle_root,
+            });
+        }
         Ok(())
     }
 }
