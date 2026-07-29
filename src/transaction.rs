@@ -22,12 +22,6 @@ const COINBASE_N: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
 pub enum TransactionError {
-    #[error("transaction error at vtx[{index}]: {source}")]
-    Indexed {
-        index: usize,
-        source: Box<TransactionError>,
-    },
-
     #[error("tx.vin or tx.vout is empty")]
     EmptyVinOrVout,
 
@@ -48,6 +42,23 @@ pub enum TransactionError {
 pub struct OutPoint {
     pub hash: Uint256,
     pub n: u32,
+}
+
+impl OutPoint {
+    pub fn new(hash: Uint256, n: u32) -> Self {
+        OutPoint { hash, n }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct InPoint {
+    pub hash: Uint256,
+    pub n: u32,
+}
+impl InPoint {
+    pub fn new(hash: Uint256, n: u32) -> Self {
+        InPoint { hash, n }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -135,7 +146,7 @@ impl Transaction {
             return Err(TransactionError::EmptyVinOrVout);
         }
         // 2. 交易大小不能超过`MAX_BLOCK_SIZE`：
-        if self.serialize().len() > MAX_BLOCK_SIZE {
+        if self.get_size() > MAX_BLOCK_SIZE {
             return Err(TransactionError::TxSizeTooLarge);
         }
 
@@ -174,9 +185,27 @@ impl Transaction {
 
     /// 统计交易输入脚本和输出脚本中的签名检查操作数量。
     pub fn get_sig_op_count(&self) -> usize {
-        let input_sig_ops = self.vin.iter().map(|txin| count_sig_ops(&txin.script_sig)).sum::<usize>();
-        let output_sig_ops = self.vout.iter().map(|txout| count_sig_ops(&txout.script_pubkey)).sum::<usize>();
+        let input_sig_ops = self.vin.iter()
+            .map(|txin| count_sig_ops(&txin.script_sig))
+            .sum::<usize>();
+        let output_sig_ops = self.vout.iter()
+            .map(|txout| count_sig_ops(&txout.script_pubkey))
+            .sum::<usize>();
         input_sig_ops + output_sig_ops
+    }
+
+    // 获取交易输出集合的 金额累计
+    pub fn get_value_out(&self) -> u64 {
+        self.vout.iter().map(|v| v.value).sum::<u64>()
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.serialize().len()
+    }
+
+    pub fn size_limit(&self, min_size: usize, max_size: usize) -> bool {
+        let size = self.get_size();
+        size >= min_size && size <= max_size
     }
 }
 

@@ -73,6 +73,7 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
         .best_index()
         .ok_or(MiningError::BestIndexNotFound)?;
     let next_height = best_index.height + 1;
+
     let (txs, total_fees) = state.mempool.collect_for_block();
 
     let mut pblock = Block::new();

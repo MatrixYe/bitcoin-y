@@ -8,6 +8,9 @@
 //! Script is a stack machine (like Forth) that evaluates a predicate
 //! returning a bool indicating valid or not.  There are no loops.
 //!
+
+use num_traits::SaturatingAdd;
+
 pub mod builder;
 pub mod consts;
 pub mod error;
@@ -29,10 +32,11 @@ pub type Script = Vec<u8>;
 /// 5. 如果遇到截断的 push-data，说明脚本结构不完整；这里停止统计，格式错误由脚本解析或交易验证的其他部分负责。
 ///
 /// 注意：这个函数只做静态扫描，不执行脚本，也不判断条件分支是否真的会执行。
+///
+///
 pub fn count_sig_ops(script: &[u8]) -> usize {
-    let mut count = 0;
-    // pc 表示当前读取位置，语义等价于原版 CScript::const_iterator pc。
-    let mut pc = 0;
+    let mut count = 0; // 统计脚本操作数
+    let mut pc = 0; // 游标
 
     while pc < script.len() {
         let opcode = script[pc];
@@ -45,20 +49,26 @@ pub fn count_sig_ops(script: &[u8]) -> usize {
 
             // OP_PUSHDATA1: 后 1 字节表示数据长度，再跳过对应数据。
             0x4c => {
-                let Some(size) = script.get(pc).copied() else { break };
+                let Some(size) = script.get(pc).copied() else {
+                    break
+                };
                 pc = pc.saturating_add(1).saturating_add(size as usize);
             }
 
             // OP_PUSHDATA2: 后 2 字节小端序表示数据长度，再跳过对应数据。
             0x4d => {
-                let Some(bytes) = script.get(pc..pc.saturating_add(2)) else { break };
+                let Some(bytes) = script.get(pc..pc.saturating_add(2)) else {
+                    break
+                };
                 let size = u16::from_le_bytes([bytes[0], bytes[1]]) as usize;
                 pc = pc.saturating_add(2).saturating_add(size);
             }
 
             // OP_PUSHDATA4: 后 4 字节小端序表示数据长度，再跳过对应数据。
             0x4e => {
-                let Some(bytes) = script.get(pc..pc.saturating_add(4)) else { break };
+                let Some(bytes) = script.get(pc..pc.saturating_add(4)) else {
+                    break
+                };
                 let size = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
                 pc = pc.saturating_add(4).saturating_add(size);
             }

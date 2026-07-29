@@ -276,12 +276,9 @@ impl Block {
                 return Err(BlockError::TooManyCoinbase);
             }
             // 逐笔检查交易自身格式
-            tx.check_transaction().map_err(|source| TransactionError::Indexed {
-                index,
-                source: Box::new(source),
-            })?
+            tx.check_transaction()?
         }
-        // 4. 检测累计脚本操作码数量是否超过MAX_BLOCK_SIGOPS
+        // 4. 检测签名相关的操作码数量是否超过阈值
         let sig_op_count = self.get_sig_op_count();
         if sig_op_count > MAX_BLOCK_SIGOPS {
             return Err(BlockError::TooManySigOps {
