@@ -11,6 +11,7 @@ use crate::codec::serialize_transaction;
 use crate::cons::{MAX_BLOCK_SIZE, MAX_MONEY};
 use crate::errors::CError;
 use crate::hash::sha256d;
+use crate::script::consts::LOCKTIME_THRESHOLD;
 use crate::script::{count_sig_ops, Script};
 use crate::uint256::Uint256;
 use thiserror::Error;
@@ -112,7 +113,23 @@ impl Transaction {
     }
 
     pub fn is_final(&self) -> bool {
-        todo!();
+        self.lock_time == 0 || self.vin.iter().all(|txin| txin.sequence == u32::MAX)
+    }
+
+    /// 判断交易在指定候选区块高度和时间下是否 final。
+    ///
+    /// `lock_time < 500000000` 时按区块高度解释，否则按 UNIX 时间戳解释。
+    pub fn is_final_at(&self, block_height: u32, block_time: u32) -> bool {
+        if self.lock_time == 0 {
+            return true;
+        }
+        // 小于该值时按区块高度解释，否则按 UNIX 时间戳解释。
+        let lock_target = match self.lock_time < LOCKTIME_THRESHOLD {
+            true => block_height,
+            false => block_time,
+        };
+
+        self.lock_time < lock_target || self.vin.iter().all(|txin| txin.sequence == u32::MAX)
     }
 
     /// 构造一个初始状态的coinbase交易

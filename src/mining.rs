@@ -73,8 +73,9 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
         .best_index()
         .ok_or(MiningError::BestIndexNotFound)?;
     let next_height = best_index.height + 1;
+    let block_time = get_block_time(state)?;
 
-    let (txs, total_fees) = state.mempool.collect_for_block();
+    let (txs, total_fees) = state.mempool.collect_for_block(next_height, block_time);
 
     let mut pblock = Block::new();
     let mut coinbase = Transaction::new_coinbase();
@@ -85,7 +86,7 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
     pblock.update_coinbase_value(get_block_value(&state, total_fees, next_height)?)?;
     pblock.set_prev_block(best_index.hash());
     pblock.set_merkle_root(pblock.get_merkle_root());
-    pblock.set_time(get_block_time(state)?);
+    pblock.set_time(block_time);
     pblock.set_bits(get_nbits(state)?);
     pblock.set_nonce(0);
     Ok(pblock)
