@@ -21,6 +21,7 @@
 //! ```
 
 use crate::block::{Block, BlockError};
+use crate::mempool::MempoolError;
 use crate::node::NodeState;
 use crate::pow::{get_next_work_required, PowError};
 use crate::script::builder::StandardScript;
@@ -30,6 +31,7 @@ use crate::utils::get_adjusted_time;
 use crate::wallet::key::PubKey;
 use std::cmp::max;
 use thiserror::Error;
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MiningError {
     #[error("block error: {0}")]
@@ -40,6 +42,9 @@ pub enum MiningError {
 
     #[error("script error {0}")]
     ScriptError(#[from] ScriptError),
+
+    #[error("mempool error {0}")]
+    MempoolError(#[from] MempoolError),
 
     #[error("unknown block index")]
     UnknownBlockIndex,
@@ -75,7 +80,7 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
     let next_height = best_index.height + 1;
     let block_time = get_block_time(state)?;
 
-    let (txs, total_fees) = state.mempool.collect_for_block(next_height, block_time);
+    let (txs, total_fees) = state.mempool.collect_for_block(next_height, block_time, 1000, 100)?;
 
     let mut pblock = Block::new();
     let mut coinbase = Transaction::new_coinbase();

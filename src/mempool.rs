@@ -4,8 +4,17 @@
 //!
 //! @Author: Matrix.Ye
 //!
-//! @Description: 交易内存池，负责管理全局状态之临时交易,
+//! @Description: 核心结构:交易内存池
 //!
+//! 1. 保存未确认的交易 `tx_entries: HashMap<Uint256, MemTxEntry>`
+//! 2. 防止池内双花 `next_tx: HashMap<OutPoint, InPoint>`
+//! 3. 基于 UtxoView 和 mempool 父交易计算手续费
+//! 4. 给挖矿流程收集候选交易，并处理 mempool 内父子依赖顺序
+//! 5. 提供内存池状态相关函数，尤其是交易变更计数器
+//! 6. 在新区块连接后删除已确认交易、冲突交易，以及冲突交易的后代
+//! 7. 暂时不考虑孤儿交易的问题，太麻烦了
+//! 8. 暂时不考虑RBF 的功能，真麻烦
+//! 9. todo: 为了处理交易依赖问题，避免多维度双花，可以后续考虑使用图结构来实现内存池
 
 use crate::cons::{MAX_BLOCK_SIGOPS, MAX_BLOCK_SIZE_GEN};
 use crate::transaction::{InPoint, OutPoint, Transaction, TransactionError, TxOut};
@@ -49,19 +58,19 @@ pub enum MempoolError {
     ValueOverflow,
 }
 
-/// # 核心结构：交易内存池
+/// ## 核心结构：交易内存池
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mempool {
     //保存“输入已知且可接受”的未确认交易
     tx_entries: HashMap<Uint256, MemTxEntry>,
-    //保存“暂时缺少前序输入”的交易
-    orphan_transactions: HashMap<OutPoint, Uint256>,
+    //todo 保存“暂时缺少前序输入”的交易
+    // orphan_transactions: HashMap<OutPoint, Uint256>,
     next_tx: HashMap<OutPoint, InPoint>,
-    n_transactions_updated: u32,
+    update_count: u32,
 }
 
 /// ## 内存中交易实体
-/// 和原版的实现的逻辑不一样，原版中通过多个全局变量来实现，这里进行了统一并增加了多个其他属性方便后续计算。
+/// 和原版的实现的逻辑不一样，原版中通过多个全局变量来实现，代码混乱不堪。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemTxEntry {
     txid: Uint256, // 在不考虑BRF的前提下，加入到内存池中的Tx是不变的，因此为了避免重复的txid计算，这里多加入了一个字段
@@ -123,10 +132,44 @@ impl Mempool {
     pub fn new() -> Self {
         Self {
             tx_entries: HashMap::new(),
-            orphan_transactions: HashMap::new(),
             next_tx: HashMap::new(),
-            n_transactions_updated: 0,
+            update_count: 0,
         }
+    }
+
+    /// 获取当前内存池中未确认交易的数量
+    pub fn len(&self) -> usize {
+        self.tx_entries.len()
+    }
+
+    /// 判断当前内存池是否为空
+    pub fn is_empty(&self) -> bool {
+        self.tx_entries.is_empty()
+    }
+
+    /// 统计当前内存池中未确认交易的累积手续费
+    pub fn total_fee(&self) -> Result<u64, MempoolError> {
+        // self.tx_entries.values().map(|entry| entry.fee()).sum();
+        self.tx_entries
+            .values()
+            .try_fold(0u64, |acc, entry| {
+                acc.checked_add(entry.fee()).ok_or(MempoolError::ValueOverflow)
+            })
+    }
+
+    /// 判断当前内存池是否包含某一笔交易
+    pub fn contains_tx(&self, txid: &Uint256) -> bool {
+        self.tx_entries.contains_key(txid)
+    }
+
+    /// 获取内存池状态计数器
+    pub fn update_count(&self) -> u32 {
+        self.update_count
+    }
+
+    /// 读取mempool 中的交易
+    pub fn get_transaction(&self, txid: &Uint256) -> Option<&Transaction> {
+        self.get_entry(txid).map(|entry| &entry.tx)
     }
 
     /// # 验证交易并加入内存池
@@ -167,48 +210,69 @@ impl Mempool {
         self.accept_to_mempool_uncheck(txid, entry);
         Ok(())
     }
-    
-    /// 读取mempool 中的交易
-    pub fn get_transactions(&self, txid: &Uint256) -> Option<&Transaction> {
-        self.get_entry(txid).map(|entry| &entry.tx)
-    }
 
-    /// 删除交易条目，并删除 mapNextTx 中对应输入索引
+    /// ## 删除交易条目
+    /// 1. 移除交易条目
+    /// 2. 移除交易条目相关的所有索引
     pub fn remove_from_mempool(&mut self, txid: &Uint256) -> Option<Uint256> {
         if let Some(entry) = self.remove_entry(txid) {
             for txin in &entry.tx.vin {
                 let outpoint = &txin.prevout;
                 let result = self.remove_next(outpoint);
-                info!("disconnect next_tx,txid = {} n = {}, success: {}", outpoint.hash,outpoint.n,result.is_some());
+                debug!("disconnect next_tx,txid = {} n = {}, success: {}", outpoint.hash,outpoint.n,result.is_some());
             }
             info!("removed mempool txid={}", txid);
+            self.update(); // 移除条目成功时也需要更新状态
             return Some(txid.clone());
         }
         None
     }
 
-    /// 当新区块连接到主链后，从 mempool 中移除已经入块的交易。
-    pub fn remove_block_txs_from_mempool(&mut self, txids: &[Uint256]) {
+    /// ## 当新区块连接到主链后，从 mempool 中移除已经入块的交易
+    /// 1. 移除可能产生双花的Tx
+    /// 2. 移除已经入快的Tx
+    pub fn remove_block_txs_from_mempool(&mut self, txs: &[Transaction]) {
         info!("new block,remove txs from mempool");
-        for txid in txids {
-            self.remove_from_mempool(txid);
+        let confirmed_txids: HashSet<Uint256> = txs.iter().map(|tx| tx.txid()).collect();
+        let mut conflict_txids = HashSet::new();
+
+        for tx in txs {
+            // 读取交易的前序交易索引，如果存在，那么需要删除内存池中可能引发双花冲突的Tx
+            for txout in &tx.vin {
+                if let Some(inpoint) = self.get_next(&txout.prevout) {
+                    if !confirmed_txids.contains(&inpoint.hash) {
+                        conflict_txids.insert(inpoint.hash);
+                    }
+                }
+            }
+        }
+
+        // 冲突交易不会被新区块确认，它的 mempool 子交易也会失去父输出，需要一起清理。
+        for txid in conflict_txids {
+            self.remove_from_mempool_with_descendants(&txid);
+        }
+
+        // 已经入块的交易只删除自身；它的子交易可能继续花费这个刚确认的输出。
+        for txid in confirmed_txids {
+            self.remove_from_mempool(&txid);
         }
     }
 
-    /// 收集交易，组建新区块使用
+    /// ## 收集交易，组建新区块使用
     ///
     /// 当前实现按 fee rate 从高到低排序，并处理 mempool 内父子依赖：
     /// 如果交易花费的是 mempool 内另一笔交易的输出，那么父交易必须先被选入候选区块。
-    pub fn collect_for_block(&self, block_height: u32, block_time: u32) -> (Vec<Transaction>, u64) {
+    pub fn collect_for_block(&self, block_height: u32, block_time: u32, mut block_size: usize, mut block_sig_ops: usize) -> Result<(Vec<Transaction>, u64), MempoolError> {
         // 目标交易集合
         let mut txs: Vec<Transaction> = Vec::new();
         let mut selected = HashSet::new();
         // 累计手续费
         let mut total_fees = 0u64;
+
         // `block_size`和`block_sig_ops`的默认值不是严格的共识
         // 而是一个近似的预留空间，其中区块头定死了80字节，加上coinbase的大小，预估而已
-        let mut block_size = 1000usize;
-        let mut block_sig_ops = 100usize;
+        // let mut block_size = 1000usize;
+        // let mut block_sig_ops = 100usize;
 
         // 当前内存池内的交易集合
         let mut candidates: Vec<&MemTxEntry> = self.tx_entries.values().collect();
@@ -257,31 +321,31 @@ impl Mempool {
                 }
 
                 // 区块体积限制
-                if block_size + entry.size >= MAX_BLOCK_SIZE_GEN {
+                if block_size + entry.size > MAX_BLOCK_SIZE_GEN {
                     debug!("skip transaction because block size exceeded");
                     continue;
                 }
                 // 区块中签名操作码数量限制
-                if block_sig_ops + entry.sig_ops >= MAX_BLOCK_SIGOPS {
+                if block_sig_ops + entry.sig_ops > MAX_BLOCK_SIGOPS {
                     debug!("skip transaction because block sigops exceeded");
                     continue;
                 }
 
                 block_size += entry.size; // 累加到区块大小
                 block_sig_ops += entry.sig_ops; // 累加到区块签名操作数
-                total_fees = total_fees.saturating_add(entry.fee); // 累加手续费
+                total_fees = total_fees.checked_add(entry.fee).ok_or(MempoolError::ValueOverflow)?; // 累加手续费
                 selected.insert(txid); // 将txid 添加到已选择交易索引中
                 txs.push(entry.tx.clone()); // 将实体Tx添加到待打包交易集合中
                 selected_any = true; // 更新本次循环中，找到新交易
             }
         }
-
-        (txs, total_fees)
+        Ok((txs, total_fees))
     }
+
     // 更新计数器
     fn update(&mut self) {
         debug!("updating mempool");
-        self.n_transactions_updated = self.n_transactions_updated.saturating_add(1);
+        self.update_count = self.update_count.checked_add(1).map_or(0, |m| m);
     }
     /// # 无验证加入内存池
     /// 1. 更新 未确认交易集合
@@ -303,14 +367,40 @@ impl Mempool {
         self.tx_entries.get(txid)
     }
 
+    // 读取交易链接
+    fn get_next(&self, out_point: &OutPoint) -> Option<&InPoint> {
+        self.next_tx.get(out_point)
+    }
+
     // 移除内存池指定条目
     fn remove_entry(&mut self, txid: &Uint256) -> Option<MemTxEntry> {
         self.tx_entries.remove(txid)
     }
 
-    // 移除内存池内
+    // 移除内存池内的交易索引
     fn remove_next(&mut self, outpoint: &OutPoint) -> Option<InPoint> {
         self.next_tx.remove(outpoint)
+    }
+
+    // 删除指定交易以及所有依赖它的 mempool 后代交易。
+    fn remove_from_mempool_with_descendants(&mut self, txid: &Uint256) {
+        let mut pending = vec![*txid];
+        let mut visited = HashSet::new();
+
+        while let Some(current) = pending.pop() {
+            if !visited.insert(current) {
+                continue;
+            }
+
+            let children = self.tx_entries
+                .values()
+                .filter(|entry| entry.tx.vin.iter().any(|txin| txin.prevout.hash == current))
+                .map(|entry| entry.txid())
+                .collect::<Vec<_>>();
+
+            pending.extend(children);
+            self.remove_from_mempool(&current);
+        }
     }
 
     // 池内双花：查找当前交易是否和 mempool 中已有交易花费了同一个 OutPoint
@@ -361,6 +451,8 @@ impl Mempool {
         })
     }
 
+    // 检查 tx_entries 中某笔父交易的 vout[n]
+    // todo:后续如果增加更复杂的移除、孤儿回填、链重组，需要重新检查这个不变量
     fn get_mempool_unspent_output(&self, outpoint: &OutPoint) -> Option<&TxOut> {
         let entry = self.tx_entries.get(&outpoint.hash)?;
         entry.tx.vout.get(outpoint.n as usize)
@@ -376,4 +468,3 @@ impl Mempool {
         })
     }
 }
-
