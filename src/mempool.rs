@@ -13,8 +13,9 @@
 //! 5. 提供内存池状态相关函数，尤其是交易变更计数器
 //! 6. 在新区块连接后删除已确认交易、冲突交易，以及冲突交易的后代
 //! 7. 暂时不考虑孤儿交易的问题，太麻烦了
-//! 8. 暂时不考虑RBF 的功能，真麻烦
+//! 8. 暂时不考虑RBF 的功能，真鸡麻烦
 //! 9. todo: 为了处理交易依赖问题，避免多维度双花，可以后续考虑使用图结构来实现内存池
+//! 10. todo: 为删除冲突交易及其所有子交易，使用递归删除法，当内存池过大、冲突过多时`remove_from_mempool_with_descendants`时间复杂的过高，需要后续优化。最直接的办法是在 Mempool 中维护一个反向依赖索引 `children: HashMap<Uint256, HashSet<Uint256>>`
 
 use crate::cons::{MAX_BLOCK_SIGOPS, MAX_BLOCK_SIZE_GEN};
 use crate::transaction::{InPoint, OutPoint, Transaction, TransactionError, TxOut};
@@ -228,9 +229,11 @@ impl Mempool {
         None
     }
 
-    /// ## 当新区块连接到主链后，从 mempool 中移除已经入块的交易
-    /// 1. 移除可能产生双花的Tx
-    /// 2. 移除已经入快的Tx
+    /// ## 当新区块连接到主链后，解决池内双花冲突
+    /// 1. 新交易进入 mempool 时：检查它是否和已有 mempool 交易花费同一个 OutPoint。
+    /// 2. 新区块连接时：检查区块交易是否和 mempool 交易花费同一个 OutPoint。
+    /// 3. 冲突交易删除时：递归删除依赖它的 mempool 后代交易。
+    /// 4. 已确认交易删除时：只删除自身，不递归删除子交易。
     pub fn remove_block_txs_from_mempool(&mut self, txs: &[Transaction]) {
         info!("new block,remove txs from mempool");
         let confirmed_txids: HashSet<Uint256> = txs.iter().map(|tx| tx.txid()).collect();
@@ -240,6 +243,9 @@ impl Mempool {
             // 读取交易的前序交易索引，如果存在，那么需要删除内存池中可能引发双花冲突的Tx
             for txout in &tx.vin {
                 if let Some(inpoint) = self.get_next(&txout.prevout) {
+                    // 如果 mempool 中的某笔交易被矿工打包进新区块，
+                    // 那么 next_tx 中也会记录它花费的输入。这种情况不是冲突，而是确认。
+                    // 确认的交易，其子交易不能被删除
                     if !confirmed_txids.contains(&inpoint.hash) {
                         conflict_txids.insert(inpoint.hash);
                     }
@@ -247,12 +253,12 @@ impl Mempool {
             }
         }
 
-        // 冲突交易不会被新区块确认，它的 mempool 子交易也会失去父输出，需要一起清理。
+        // 冲突交易不会被新区块确认，它的 mempool 子交易也会失去父输出，需要一起清理
         for txid in conflict_txids {
             self.remove_from_mempool_with_descendants(&txid);
         }
 
-        // 已经入块的交易只删除自身；它的子交易可能继续花费这个刚确认的输出。
+        // 已经入块的交易只删除自身；它的子交易可能继续花费这个刚确认的输出
         for txid in confirmed_txids {
             self.remove_from_mempool(&txid);
         }
