@@ -20,6 +20,7 @@
 use crate::cons::{MAX_BLOCK_SIGOPS, MAX_BLOCK_SIZE_GEN};
 use crate::transaction::{InPoint, OutPoint, Transaction, TransactionError, TxOut};
 use crate::uint256::Uint256;
+use crate::utxo::UtxoView;
 use log::{debug, info, warn};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
@@ -79,14 +80,6 @@ pub struct MemTxEntry {
     fee: u64, // 手续费
     size: usize, // 交易大小
     sig_ops: usize, // 交易包含的累积签名数量
-}
-
-/// ## UTXO 读取视图
-///
-/// Mempool 不直接决定 UTXO 存在哪里；它只要求调用方能按 OutPoint 查到未花费输出。
-/// 当前可以由内存 UTXO 集实现，后续也可以由本地数据库加缓存实现。
-pub trait UtxoView {
-    fn get_unspent_output(&self, outpoint: &OutPoint) -> Option<&TxOut>;
 }
 
 impl MemTxEntry {

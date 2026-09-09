@@ -18,4 +18,5 @@ pub mod uint256;
 pub mod validation;
 pub mod wallet;
 pub mod pow;
-mod utils;
+pub mod utils;
+pub mod utxo;

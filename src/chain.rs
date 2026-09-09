@@ -494,42 +494,22 @@ impl BlockTree {
     /// 3. 两个节点同时沿父节点向前回退，直到 hash 相等
     /// 4. left.hash == right.hash 说明它们走到了同一个区块，这个区块就是共同祖先。
     pub fn fork_point(&self, left: Uint256, right: Uint256) -> Result<Uint256, ChainError> {
-        let mut left = self
-            .get(left)
-            .ok_or(ChainError::UnknownBlock { hash: left })?;
-        let mut right = self
-            .get(right)
-            .ok_or(ChainError::UnknownBlock { hash: right })?;
+        let mut left = self.get(left).ok_or(ChainError::UnknownBlock { hash: left })?;
+        let mut right = self.get(right).ok_or(ChainError::UnknownBlock { hash: right })?;
 
         while left.height > right.height {
-            let prev = left
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: left.hash })?;
-            left = self
-                .get(prev)
-                .ok_or(ChainError::UnknownBlock { hash: prev })?;
+            let prev = left.prev.ok_or(ChainError::UnknownBlock { hash: left.hash })?;
+            left = self.get(prev).ok_or(ChainError::UnknownBlock { hash: prev })?;
         }
         while right.height > left.height {
-            let prev = right
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: right.hash })?;
-            right = self
-                .get(prev)
-                .ok_or(ChainError::UnknownBlock { hash: prev })?;
+            let prev = right.prev.ok_or(ChainError::UnknownBlock { hash: right.hash })?;
+            right = self.get(prev).ok_or(ChainError::UnknownBlock { hash: prev })?;
         }
         while left.hash != right.hash {
-            let left_prev = left
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: left.hash })?;
-            let right_prev = right
-                .prev
-                .ok_or(ChainError::UnknownBlock { hash: right.hash })?;
-            left = self
-                .get(left_prev)
-                .ok_or(ChainError::UnknownBlock { hash: left_prev })?;
-            right = self
-                .get(right_prev)
-                .ok_or(ChainError::UnknownBlock { hash: right_prev })?;
+            let left_prev = left.prev.ok_or(ChainError::UnknownBlock { hash: left.hash })?;
+            let right_prev = right.prev.ok_or(ChainError::UnknownBlock { hash: right.hash })?;
+            left = self.get(left_prev).ok_or(ChainError::UnknownBlock { hash: left_prev })?;
+            right = self.get(right_prev).ok_or(ChainError::UnknownBlock { hash: right_prev })?;
         }
 
         Ok(left.hash)
