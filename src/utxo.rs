@@ -6,8 +6,9 @@
 //!
 //! @Description: 维护当前最佳链对应的未花费输出集合。
 
+use crate::cons::COINBASE_MATURITY;
 use crate::transaction::{OutPoint, Transaction, TxOut};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -18,11 +19,21 @@ pub enum UtxoError {
     #[error("coinbase output is not mature: {outpoint:?}, depth={depth}")]
     CoinbaseNotMature { outpoint: OutPoint, depth: u32 }, //花费 coinbase 但确认数不足。
 
+    #[error("invalid spend height: {outpoint:?}, created at {created_height}, spent at {spend_height}")]
+    InvalidSpendHeight {
+        outpoint: OutPoint,
+        created_height: u32,
+        spend_height: u32,
+    },
+
+    #[error("duplicate transaction input: {outpoint:?}")]
+    DuplicateInput { outpoint: OutPoint },
+
     #[error("UTXO value overflow")]
     ValueOverflow, //输入或输出金额累计溢出。
 
-    #[error("UTXO value underflow")]
-    ValueUnderflow, //输入金额小于输出金额。
+    #[error("transaction input value {value_in} is less than output value {value_out}")]
+    ValueUnderflow { value_in: u64, value_out: u64 }, //输入金额小于输出金额。
 
     #[error("unspent output already exists: {outpoint:?}")]
     DuplicateOutput { outpoint: OutPoint },
@@ -34,6 +45,12 @@ pub struct UtxoEntry {
     tx_out: TxOut,
     height: u32,
     is_coinbase: bool,
+}
+
+/// 连接交易时被花费的旧 UTXO，用于后续断开交易或区块时恢复状态。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConnectTxUndo {
+    spent_outputs: Vec<(OutPoint, UtxoEntry)>,
 }
 
 /// 为只需要查询未花费输出的模块提供最小读取接口。
@@ -64,6 +81,23 @@ impl UtxoEntry {
     /// 判断该输出是否来自 coinbase 交易。
     pub fn is_coinbase(&self) -> bool {
         self.is_coinbase
+    }
+}
+
+impl ConnectTxUndo {
+    /// 创建交易回滚记录。
+    pub fn new(spent_outputs: Vec<(OutPoint, UtxoEntry)>) -> Self {
+        Self { spent_outputs }
+    }
+
+    /// 获取本次交易连接时被花费的全部旧 UTXO。
+    pub fn spent_outputs(&self) -> &[(OutPoint, UtxoEntry)] {
+        &self.spent_outputs
+    }
+
+    /// 消费回滚记录并返回被花费的旧 UTXO。
+    pub fn into_spent_outputs(self) -> Vec<(OutPoint, UtxoEntry)> {
+        self.spent_outputs
     }
 }
 
@@ -127,7 +161,7 @@ impl UtxoSet {
         let txid = tx.txid();
         let is_coinbase = tx.is_coinbase();
 
-        // 判重
+        // 先判重
         if let Some(outpoint) = tx.vout.iter()
             .enumerate()
             .map(|(index, _)| OutPoint::new(txid, index as u32))
@@ -135,12 +169,90 @@ impl UtxoSet {
             return Err(UtxoError::DuplicateOutput { outpoint });
         }
 
-        // 依次添加
+        // 再依次添加
         tx.vout.iter().enumerate().try_for_each(|(index, txout)| {
             let outpoint = OutPoint::new(txid, index as u32);
             let entry = UtxoEntry::new(txout.clone(), height, is_coinbase);
             self.insert(outpoint, entry)
         })
+    }
+
+    /// 连接一笔交易：花费输入引用的 UTXO，并创建该交易的全部输出。
+    ///
+    /// 所有输入、coinbase 成熟度、金额和新输出冲突都会在修改集合之前完成检查，
+    /// 因此函数返回错误时不会留下只花费了部分输入的中间状态。
+    /// 调用方应先完成 `Transaction::check_transaction` 等与 UTXO 无关的基础检查。
+    pub fn connect_transaction(&mut self, tx: &Transaction, height: u32) -> Result<ConnectTxUndo, UtxoError> {
+        let txid = tx.txid();
+        let is_coinbase = tx.is_coinbase();
+        let new_outputs = tx.vout.iter()
+            .enumerate()
+            .map(|(index, tx_out)| {
+                let outpoint = OutPoint::new(txid, index as u32);
+                let entry = UtxoEntry::new(tx_out.clone(), height, is_coinbase);
+                (outpoint, entry)
+            })
+            .collect::<Vec<_>>();
+
+        if let Some((outpoint, _)) = new_outputs.iter().find(|(outpoint, _)| self.contains(outpoint)) {
+            return Err(UtxoError::DuplicateOutput { outpoint: *outpoint });
+        }
+
+        // coinbase 不花费旧输出，只需要把新生成的输出加入当前 UTXO 集。
+        if is_coinbase {
+            new_outputs.into_iter().for_each(|(outpoint, entry)| {
+                self.coins.insert(outpoint, entry);
+            });
+            return Ok(ConnectTxUndo::default());
+        }
+
+        let mut seen_inputs = HashSet::new();
+        let mut spent_outputs = Vec::with_capacity(tx.vin.len());
+        let mut value_in = 0u64;
+
+        for txin in &tx.vin {
+            let outpoint = txin.prevout;
+            if !seen_inputs.insert(outpoint) {
+                return Err(UtxoError::DuplicateInput { outpoint });
+            }
+
+            let entry = self.get(&outpoint)
+                .ok_or(UtxoError::MissingOutput { outpoint })?;
+
+            let depth = height.checked_sub(entry.height)
+                .ok_or(UtxoError::InvalidSpendHeight {
+                    outpoint,
+                    created_height: entry.height,
+                    spend_height: height,
+                })?;
+
+            if entry.is_coinbase && depth < COINBASE_MATURITY as u32 {
+                return Err(UtxoError::CoinbaseNotMature { outpoint, depth });
+            }
+
+            value_in = value_in.checked_add(entry.tx_out.value)
+                .ok_or(UtxoError::ValueOverflow)?;
+            spent_outputs.push((outpoint, entry.clone()));
+        }
+
+        let value_out = tx.vout.iter()
+            .try_fold(0u64, |acc, txout| {
+                acc.checked_add(txout.value).ok_or(UtxoError::ValueOverflow)
+            })?;
+
+        if value_out > value_in {
+            return Err(UtxoError::ValueUnderflow { value_in, value_out });
+        }
+
+        // 前置检查全部通过后再提交修改，保证错误路径不会留下部分更新。
+        spent_outputs.iter().for_each(|(outpoint, _)| {
+            self.coins.remove(outpoint);
+        });
+        new_outputs.into_iter().for_each(|(outpoint, entry)| {
+            self.coins.insert(outpoint, entry);
+        });
+
+        Ok(ConnectTxUndo::new(spent_outputs))
     }
 }
 
