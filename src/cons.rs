@@ -26,7 +26,8 @@ pub const SUBSIDY_ORIGINAL: u64 = 50 * COIN;
 pub const SUBSIDY_HALF_LIFE: u32 = 210000;
 
 /// coinbase 输出需要 100 个区块成熟。
-pub const COINBASE_MATURITY: usize = 100;
+// pub const COINBASE_MATURITY: usize = 100;
+pub const COINBASE_MATURITY: u32 = 6;
 
 /// 当前实验链的 coinbase 奖励。
 pub const COINBASE_REWARD: u64 = 1_000_000;
