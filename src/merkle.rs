@@ -31,10 +31,6 @@ pub enum MerkleError {
     IndexOutOfBounds { index: usize, len: usize },
 }
 
-/// 默克尔树
-pub struct MerkleTree {
-    levels: Vec<Vec<Uint256>>,
-}
 
 /// 默克尔路径证明。
 ///
@@ -47,10 +43,74 @@ pub struct MerkleProof {
     tx_index: usize,
     siblings: Vec<Uint256>,
 }
-
+/// 默克尔树
+pub struct MerkleTree {
+    nodes: Vec<Uint256>,
+    leaf_count: usize,
+}
 impl MerkleTree {
-    pub fn from_txs(layer: Vec<Uint256>) -> Self {
-        todo!("通过先构建默克尔了树的方式为基础，再得到默克尔根和默克尔路径，默克尔证明")
+    pub fn from_txs(txids: &[Uint256]) -> Self {
+        if txids.is_empty() {
+            return MerkleTree { nodes: vec![Uint256::ZERO], leaf_count: 0 };
+        }
+
+        let leaf_count = txids.len();
+        let mut nodes: Vec<Uint256> = Vec::new();
+
+        let mut level = txids.to_vec();
+        nodes.extend(level.to_vec());
+
+        while level.len() > 1 {
+            level = level.chunks(2)
+                .map(|pair| comb_uint256(&pair[0], pair.get(1).unwrap_or(&pair[0])))
+                .collect();
+            nodes.extend(level.clone());
+        }
+        Self { nodes, leaf_count }
+    }
+
+    /// 返回默克尔树的根哈希
+    pub fn root(&self) -> Uint256 {
+        self.nodes.last().unwrap().clone()
+    }
+
+    pub fn build_merkle_proof(&self, tx_index: usize) -> Result<Vec<Uint256>, MerkleError> {
+        if self.nodes.is_empty() {
+            return Err(MerkleError::EmptyTree);
+        }
+        if tx_index >= self.leaf_count {
+            return Err(MerkleError::IndexOutOfBounds { index: tx_index, len: self.leaf_count });
+        }
+
+        let mut buff = Vec::new();
+
+        let layers = self.to_layers();
+
+        let mut index = tx_index;
+
+        for (i, layer) in layers.iter().enumerate() {
+            let x = if index % 2 == 0 { index + 1 } else { index - 1 };
+            buff.push(layer[x]);
+        }
+
+
+        Ok(buff)
+    }
+    fn find_bro(&self) {
+
+              }
+    fn to_layers(&self) -> Vec<Vec<Uint256>> {
+        let mut buff: Vec<Vec<Uint256>> = Vec::new();
+        let mut x = self.leaf_count; // 每一层级的节点数量，初始状态为叶子节点数量
+        let mut y = 0; // 角标累计偏移量
+
+        while x >= 1 {
+            let layer = self.nodes[0 + y..x + y].to_vec();
+            buff.push(layer);
+            y += x;
+            x = if x % 2 == 0 { x / 2 } else { (x + 1) / 2 };
+        }
+        buff
     }
 }
 
@@ -181,9 +241,16 @@ pub fn verify_merkle_proof(txid: Uint256, proof: &MerkleProof, expected_root: Ui
 }
 
 // 拼接两个uint256,组成一个[u8;64],进行sha256d 哈希，得到一个新的[u8;32] 转化成Uint256
-fn hash_pair(h1: Uint256, h2: Uint256) -> Uint256 {
+fn hash_pair(left: Uint256, right: Uint256) -> Uint256 {
     let mut connect = [0x0u8; 64];
-    connect[..32].copy_from_slice(&h1.to_bytes());
-    connect[32..].copy_from_slice(&h2.to_bytes());
+    connect[..32].copy_from_slice(&left.to_bytes());
+    connect[32..].copy_from_slice(&right.to_bytes());
+    Uint256::from_bytes(sha256d(&connect))
+}
+
+fn comb_uint256(left: &Uint256, right: &Uint256) -> Uint256 {
+    let mut connect = [0x0u8; 64];
+    connect[..32].copy_from_slice(&left.to_bytes());
+    connect[32..].copy_from_slice(&right.to_bytes());
     Uint256::from_bytes(sha256d(&connect))
 }

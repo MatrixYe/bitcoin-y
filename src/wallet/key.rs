@@ -9,7 +9,7 @@ use thiserror::Error;
 ///
 /// @Author Matrix.Ye
 ///
-/// @Description: 钱包密钥类型层。这里只处理 secp256k1 密钥、签名和公钥哈希，不处理钱包状态。
+/// @Description: 提供密钥、DER/compact 签名、摘要签名与验证。这里只处理 secp256k1 密钥、签名和公钥哈希，不处理钱包状态。
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum KeyError {

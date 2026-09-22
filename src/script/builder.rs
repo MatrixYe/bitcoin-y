@@ -11,7 +11,7 @@ use crate::wallet::key::PubKey;
 ///
 /// @Author: Matrix.Ye
 ///
-/// @Description: 脚本构造器
+/// @Description: 标准脚本的构造与解析
 /// Push 编码规则
 ///
 /// ```text

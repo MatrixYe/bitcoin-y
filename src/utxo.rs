@@ -4,8 +4,9 @@
 //!
 //! @Author: Matrix.Ye
 //!
-//! @Description: 维护当前最佳链对应的未花费输出集合。
+//! @Description: 从内存上维护当前最佳链对应的未花费输出集合。
 
+use crate::block::Block;
 use crate::cons::COINBASE_MATURITY;
 use crate::transaction::{OutPoint, Transaction, TxOut};
 use std::collections::{HashMap, HashSet};
@@ -53,6 +54,8 @@ pub struct UtxoEntry {
 pub struct ConnectTxUndo {
     spent_outputs: Vec<(OutPoint, UtxoEntry)>,
 }
+
+pub struct ConnectBlockUndo {}
 
 /// 为只需要查询未花费输出的模块提供最小读取接口。
 pub trait UtxoView {
@@ -157,7 +160,7 @@ impl UtxoSet {
     /// 花费输入引用的 UTXO，并创建该交易的全部输出。即花费旧硬币，产生新硬币。
     ///
     /// ### 流程
-    /// 1. `Transaction::check_transaction` 等与 UTXO 无关的基础检查在之前就应该完成
+    /// 1. **`Transaction::check_transaction`和脚本检测 等与 UTXO 无关的基础检查在之前就应该完成！！**
     /// 2. 创建预备花费货币集合和预备生产货币集合
     /// 3. 检查新货币重复(创建重复货币)，-> 检查输入货币是否存在 -> 检查初始货币成熟度 -> 检查金额
     /// 4. 检查通过，统一进行移除和插入，更新全局状态
@@ -250,7 +253,8 @@ impl UtxoSet {
         Ok(ConnectTxUndo::new(prep_remove_utxos))
     }
 
-    pub fn connect_block() {
+    /// ## 连接区块
+    pub fn connect_block(&mut self, block: &Block, height: u32) -> Result<ConnectBlockUndo, UtxoError> {
         todo!()
     }
 }
