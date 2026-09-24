@@ -8,13 +8,13 @@
 
 use crate::codec::deserialize_transaction;
 use crate::codec::serialize_transaction;
-use crate::cons::{MAX_BLOCK_SIZE, MAX_MONEY};
 use crate::errors::CError;
 use crate::hash::sha256d;
 use crate::script::consts::LOCKTIME_THRESHOLD;
-use crate::script::{count_sig_ops, Script};
+use crate::script::{Script, count_sig_ops};
 use crate::uint256::Uint256;
 use thiserror::Error;
+use crate::params::Params;
 
 // 原版语义中，coinbase的交易输入的前驱，n =-1,因为是无符号整数，所有实际为u32::MAX
 // coinbase 输入使用的特殊输出索引 0xffff_ffff。反正不是0，参考源忘了，记得查过一次。
@@ -157,20 +157,20 @@ impl Transaction {
     }
 
     /// 交易检测(无关上下文)
-    pub fn check_transaction(&self) -> Result<(), TransactionError> {
+    pub fn check_transaction(&self,params: &Params) -> Result<(), TransactionError> {
         // 输入和输出不能为空
         if self.vin.is_empty() || self.vout.is_empty() {
             return Err(TransactionError::EmptyVinOrVout);
         }
         // 2. 交易大小不能超过`MAX_BLOCK_SIZE`：
-        if self.get_size() > MAX_BLOCK_SIZE {
+        if self.get_size() > params.consensus.max_block_size {
             return Err(TransactionError::TxSizeTooLarge);
         }
 
         //每个输出金额不能为负，不能超过 MAX_MONEY：
         let mut total_value = 0u64;
         for out in self.vout.iter() {
-            if out.value > MAX_MONEY {
+            if out.value >  params.consensus.max_money {
                 return Err(TransactionError::TxValueOverflow);
             }
             // fix: check_transaction 的金额累加溢出问题，用 checked_add 避免 u64 溢出后绕回
@@ -178,7 +178,7 @@ impl Transaction {
             total_value = total_value
                 .checked_add(out.value)
                 .ok_or(TransactionError::TxValueOverflow)?;
-            if total_value > MAX_MONEY {
+            if total_value >  params.consensus.max_money {
                 return Err(TransactionError::TxValueOverflow);
             }
         }

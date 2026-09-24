@@ -17,7 +17,7 @@
 //! 9. todo: 为了处理交易依赖问题，避免多维度双花，可以后续考虑使用图结构来实现内存池
 //! 10. todo: 为删除冲突交易及其所有子交易，使用递归删除法，当内存池过大、冲突过多时`remove_from_mempool_with_descendants`时间复杂的过高，需要后续优化。最直接的办法是在 Mempool 中维护一个反向依赖索引 `children: HashMap<Uint256, HashSet<Uint256>>`
 
-use crate::cons::{MAX_BLOCK_SIGOPS, MAX_BLOCK_SIZE_GEN};
+use crate::params::Params;
 use crate::transaction::{InPoint, OutPoint, Transaction, TransactionError, TxOut};
 use crate::uint256::Uint256;
 use crate::utxo::UtxoView;
@@ -172,7 +172,7 @@ impl Mempool {
     /// 3. 拒绝非法Tx
     /// 4. 拒绝重复加入
     /// 5. 拒绝池内双花交易
-    pub fn accept_to_mempool<U>(&mut self, tx: &Transaction, utxo: &U) -> Result<(), MempoolError>
+    pub fn accept_to_mempool<U>(&mut self,params: &Params, tx: &Transaction, utxo: &U) -> Result<(), MempoolError>
     where
         U: UtxoView,
     {
@@ -184,7 +184,7 @@ impl Mempool {
         // 检查 nLockTime 限制 todo 等待block height
 
         // 交易本身的合法性检查(无上下文的)
-        tx.check_transaction()?;
+        tx.check_transaction(params)?;
 
         // 交易不可以重复加入
         if self.already_have(&txid) {
@@ -261,7 +261,7 @@ impl Mempool {
     ///
     /// 当前实现按 fee rate 从高到低排序，并处理 mempool 内父子依赖：
     /// 如果交易花费的是 mempool 内另一笔交易的输出，那么父交易必须先被选入候选区块。
-    pub fn collect_for_block(&self, block_height: u32, block_time: u32, mut block_size: usize, mut block_sig_ops: usize) -> Result<(Vec<Transaction>, u64), MempoolError> {
+    pub fn collect_for_block(&self, params: &Params, block_height: u32, block_time: u32, mut block_size: usize, mut block_sig_ops: usize) -> Result<(Vec<Transaction>, u64), MempoolError> {
         // 目标交易集合
         let mut txs: Vec<Transaction> = Vec::new();
         let mut selected = HashSet::new();
@@ -320,12 +320,12 @@ impl Mempool {
                 }
 
                 // 区块体积限制
-                if block_size + entry.size > MAX_BLOCK_SIZE_GEN {
+                if block_size + entry.size > params.config.max_block_size_gen {
                     debug!("skip transaction because block size exceeded");
                     continue;
                 }
                 // 区块中签名操作码数量限制
-                if block_sig_ops + entry.sig_ops > MAX_BLOCK_SIGOPS {
+                if block_sig_ops + entry.sig_ops > params.consensus.max_block_sigops {
                     debug!("skip transaction because block sigops exceeded");
                     continue;
                 }

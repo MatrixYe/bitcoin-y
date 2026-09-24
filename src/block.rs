@@ -9,7 +9,6 @@
 use crate::bignum::BigNum;
 use crate::codec::serialize_block;
 use crate::codec::serialize_block_header;
-use crate::cons::{MAX_BLOCK_SIGOPS, MAX_BLOCK_SIZE, POW_TARGT_LIMIT};
 use crate::hash::sha256d;
 use crate::merkle::compute_merkle_root;
 use crate::pow::{check_proof_of_work, PowError};
@@ -17,6 +16,7 @@ use crate::transaction::{Transaction, TransactionError};
 use crate::uint256::Uint256;
 use crate::utils::get_adjusted_time;
 use thiserror::Error;
+use crate::params::Params;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BlockError {
@@ -87,7 +87,7 @@ pub enum BlockError {
 /// // network and disk
 /// vector<CTransaction> vtx;
 ///
-/// // memory only
+/// //memory only
 /// mutable vector<uint256> vMerkleTree;
 /// }
 /// ```
@@ -241,21 +241,22 @@ impl Block {
     ///
     ///  主要做“区块自身格式和基本内容是否正确”的检查
     /// 这些检查与上下文无关，可在保存孤儿区块之前进行验证。与上下文相关的检查在后续`AcceptBlock`、`ConnectBlock`、`SetBestChain`中完成
-    pub fn check_block(&self) -> Result<(), BlockError> {
+    pub fn check_block(&self,params: &Params) -> Result<(), BlockError> {
         // 1. 大小检查
         if self.vtx.is_empty() {
             return Err(BlockError::EmptyTxData);
         }
 
         let serialized_size = serialize_block(self).len();
-        if serialized_size > MAX_BLOCK_SIZE {
+        if serialized_size > params.consensus.max_block_size {
             return Err(BlockError::BlockSizeOverflow {
-                maximum: MAX_BLOCK_SIZE,
+                maximum: params.consensus.max_block_size,
                 actual: serialized_size,
             });
         }
-        // 2. 工作量检查
-        check_proof_of_work(self.hash(), self.header.bits, POW_TARGT_LIMIT)?;
+        // 2. 工作量检查2
+        // check_proof_of_work(self.hash(), self.header.bits, POW_TARGT_LIMIT)?;
+        check_proof_of_work(self.hash(), self.header.bits, params.consensus.pow_target_limit)?;
 
         // 3.时间检查
         let block_time = self.get_block_time();
@@ -276,13 +277,13 @@ impl Block {
                 return Err(BlockError::TooManyCoinbase);
             }
             // 逐笔检查交易自身格式
-            tx.check_transaction()?
+            tx.check_transaction(params)?
         }
         // 4. 检测签名相关的操作码数量是否超过阈值
         let sig_op_count = self.get_sig_op_count();
-        if sig_op_count > MAX_BLOCK_SIGOPS {
+        if sig_op_count > params.consensus.max_block_sigops {
             return Err(BlockError::TooManySigOps {
-                maximum: MAX_BLOCK_SIGOPS,
+                maximum: params.consensus.max_block_sigops,
                 actual: sig_op_count,
             });
         }

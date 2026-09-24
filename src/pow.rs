@@ -14,10 +14,11 @@
 
 use crate::bignum::BigNum;
 use crate::chain::{BlockIndex, BlockTree};
-use crate::parms::ChainParams;
+use crate::params::Params;
 use crate::uint256::Uint256;
-use log::{error, warn};
+use log::error;
 use thiserror::Error;
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum PowError {
     #[error("retarget block at height {height} is not in active chain")]
@@ -43,17 +44,17 @@ pub enum PowError {
 /// 5. 限制不能低于最低难度
 /// 6. 返回难度指标的压缩值 `bnNew.GetCompact()`
 
-pub fn get_next_work_required(chain: &BlockTree, last: &BlockIndex, params: &ChainParams) -> Result<u32, PowError> {
+pub fn get_next_work_required(params: &Params,chain: &BlockTree, last: &BlockIndex) -> Result<u32, PowError> {
 
     // params.check()?; // 工作量证明默认参数正确，上下文需要对参数进行检测
 
     // 如果是创世区块，直接返回默认值
     if last.is_genesis() {
-        return Ok(params.pow_target_genesis.get_compact(false));
+        return Ok(params.consensus.pow_target_genesis.get_compact(false));
     }
 
-    let target_spacing = params.target_spacing;
-    let target_timespan = params.target_timespan;
+    let target_spacing = params.consensus.target_spacing;
+    let target_timespan = params.consensus.target_timespan;
     let interval = target_timespan / target_spacing;
 
     // 如果下个块的高度不处于难度调整点，返回上一个区块的难度值
@@ -79,7 +80,7 @@ pub fn get_next_work_required(chain: &BlockTree, last: &BlockIndex, params: &Cha
     new_target /= BigNum::from_u32(target_timespan);
 
     // 目标值限制，目标值限制最大值，相当于难度限制最小值
-    let target_limit = BigNum::from_uint256(params.pow_target_limit);
+    let target_limit = BigNum::from_uint256(params.consensus.pow_target_limit);
     //CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
     if new_target > target_limit {
         new_target = target_limit;

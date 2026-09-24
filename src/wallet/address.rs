@@ -1,5 +1,5 @@
 use crate::hash::{hash160, sha256d};
-use crate::parms::Network;
+use crate::params::Network;
 use crate::wallet::key::PubKey;
 use std::fmt;
 use std::str::FromStr;

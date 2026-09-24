@@ -44,6 +44,7 @@ impl Uint256 {
         0x0000_0000,
     ]);
 
+    // todo: 修复创世区块
     pub const GENESIS: Self = Self([
         0x0000_0000,
         0x0000_0000,

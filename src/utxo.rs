@@ -7,10 +7,10 @@
 //! @Description: 从内存上维护当前最佳链对应的未花费输出集合。
 
 use crate::block::Block;
-use crate::cons::COINBASE_MATURITY;
 use crate::transaction::{OutPoint, Transaction, TxOut};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
+use crate::params::Params;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum UtxoError {
@@ -165,7 +165,7 @@ impl UtxoSet {
     /// 3. 检查新货币重复(创建重复货币)，-> 检查输入货币是否存在 -> 检查初始货币成熟度 -> 检查金额
     /// 4. 检查通过，统一进行移除和插入，更新全局状态
     /// 5. 返回`ConnectTxUndo`
-    pub fn connect_transaction(&mut self, tx: &Transaction, height: u32) -> Result<ConnectTxUndo, UtxoError> {
+    pub fn connect_transaction(&mut self,params: &Params, tx: &Transaction, height: u32) -> Result<ConnectTxUndo, UtxoError> {
         let txid = tx.txid();
         let is_coinbase = tx.is_coinbase();
 
@@ -220,8 +220,8 @@ impl UtxoSet {
                 })?;
 
             // 如果是coinbase交易，需要检查深度是否符合标准
-            if entry.is_coinbase && depth < COINBASE_MATURITY {
-                return Err(UtxoError::CoinbaseNotMature { outpoint, depth, min_depth: COINBASE_MATURITY });
+            if entry.is_coinbase && depth < params.consensus.coinbase_maturity {
+                return Err(UtxoError::CoinbaseNotMature { outpoint, depth, min_depth: params.consensus.coinbase_maturity });
             }
 
             // 累加，交易输入总金额

@@ -6,9 +6,9 @@
 //!
 //! @Description: null
 
-use bitcoin_y::uint256::Uint256;
+use bitcoin_y::params::{Network, Params};
 fn main() {
     env_logger::init(); // 不要注释，env_logger必须初始化才能使用
-    let m = Uint256::MAX;
-    println!("{}", m);
+    let params = Params::from_network(Network::Main);
+    println!("{:?}", params.consensus.genesis_hash);
 }

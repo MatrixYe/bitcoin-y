@@ -44,6 +44,8 @@ pub struct MerkleProof {
     siblings: Vec<Uint256>,
 }
 /// 默克尔树
+///
+/// 使用扁平化的结构表示，减少堆内存分配
 pub struct MerkleTree {
     nodes: Vec<Uint256>,
     leaf_count: usize,
@@ -57,14 +59,14 @@ impl MerkleTree {
         let leaf_count = txids.len();
         let mut nodes: Vec<Uint256> = Vec::new();
 
-        let mut level = txids.to_vec();
-        nodes.extend(level.to_vec());
+        let mut layer = txids.to_vec();
+        nodes.extend(layer.to_vec());
 
-        while level.len() > 1 {
-            level = level.chunks(2)
+        while layer.len() > 1 {
+            layer = layer.chunks(2)
                 .map(|pair| comb_uint256(&pair[0], pair.get(1).unwrap_or(&pair[0])))
                 .collect();
-            nodes.extend(level.clone());
+            nodes.extend(layer.clone());
         }
         Self { nodes, leaf_count }
     }
@@ -74,6 +76,7 @@ impl MerkleTree {
         self.nodes.last().unwrap().clone()
     }
 
+    /// 构建默克尔路径证明
     pub fn build_merkle_proof(&self, tx_index: usize) -> Result<Vec<Uint256>, MerkleError> {
         if self.nodes.is_empty() {
             return Err(MerkleError::EmptyTree);
@@ -84,33 +87,13 @@ impl MerkleTree {
 
         let mut buff = Vec::new();
 
-        let layers = self.to_layers();
-
-        let mut index = tx_index;
-
-        for (i, layer) in layers.iter().enumerate() {
-            let x = if index % 2 == 0 { index + 1 } else { index - 1 };
-            buff.push(layer[x]);
-        }
-
-
+        todo!("实现默克尔路径的生成");
         Ok(buff)
     }
-    fn find_bro(&self) {
 
-              }
-    fn to_layers(&self) -> Vec<Vec<Uint256>> {
-        let mut buff: Vec<Vec<Uint256>> = Vec::new();
-        let mut x = self.leaf_count; // 每一层级的节点数量，初始状态为叶子节点数量
-        let mut y = 0; // 角标累计偏移量
-
-        while x >= 1 {
-            let layer = self.nodes[0 + y..x + y].to_vec();
-            buff.push(layer);
-            y += x;
-            x = if x % 2 == 0 { x / 2 } else { (x + 1) / 2 };
-        }
-        buff
+    /// 验证默克尔路径证明
+    pub fn verify_merkle_proof(&self, txid: Uint256, path: &[Uint256]) {
+        todo!()
     }
 }
 

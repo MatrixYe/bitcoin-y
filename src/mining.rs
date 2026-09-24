@@ -23,7 +23,8 @@
 use crate::block::{Block, BlockError};
 use crate::mempool::MempoolError;
 use crate::node::NodeState;
-use crate::pow::{get_next_work_required, PowError};
+use crate::params::Params;
+use crate::pow::{PowError, get_next_work_required};
 use crate::script::builder::StandardScript;
 use crate::script::error::ScriptError;
 use crate::transaction::Transaction;
@@ -72,7 +73,7 @@ pub enum MiningError {
 ///
 /// 对应原版 `CreateNewBlock` 的核心流程：先放入 coinbase，再收集 mempool 交易，
 /// 最后根据交易集合和前序区块索引初始化区块头字段。
-pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, MiningError> {
+pub fn create_new_block(state: &NodeState, params: &Params, pub_key: PubKey) -> Result<Block, MiningError> {
     let best_index = state
         .chain
         .best_index()
@@ -80,7 +81,7 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
     let next_height = best_index.height + 1;
     let block_time = get_block_time(state)?;
 
-    let (txs, total_fees) = state.mempool.collect_for_block(next_height, block_time, 1000, 100)?;
+    let (txs, total_fees) = state.mempool.collect_for_block(params, next_height, block_time, 1000, 100)?;
 
     let mut pblock = Block::new();
     let mut coinbase = Transaction::new_coinbase();
@@ -88,31 +89,27 @@ pub fn create_new_block(state: &NodeState, pub_key: PubKey) -> Result<Block, Min
 
     pblock.push_tx(coinbase);
     pblock.push_txs(txs);
-    pblock.update_coinbase_value(get_block_value(&state, total_fees, next_height)?)?;
+    pblock.update_coinbase_value(get_block_value(params, total_fees, next_height)?)?;
     pblock.set_prev_block(best_index.hash());
     pblock.set_merkle_root(pblock.get_merkle_root());
     pblock.set_time(block_time);
-    pblock.set_bits(get_nbits(state)?);
+    pblock.set_bits(get_nbits(params, state)?);
     pblock.set_nonce(0);
     Ok(pblock)
 }
 
 /// 计算区块价值：区块补贴 + 当前候选区块打包交易产生的手续费。
-fn get_block_value(state: &NodeState, total_fees: u64, height: u32) -> Result<u64, MiningError> {
+fn get_block_value(params: &Params, total_fees: u64, height: u32) -> Result<u64, MiningError> {
     // 减半周期无法为0
-    if state.params.subsidy_halving_interval == 0 {
+    if params.consensus.subsidy_halving_interval == 0 {
         return Err(MiningError::InvalidChainParams {
             msg: "subsidy halving interval must be greater than zero".to_string(),
         });
     }
     // 计算衰减次数
-    let halvings = height as u64 / state.params.subsidy_halving_interval;
+    let halvings = height / params.consensus.subsidy_halving_interval;
     // 计算当前补贴
-    let subsidy = state
-        .params
-        .subsidy_initial
-        .checked_shr(halvings as u32)
-        .unwrap_or(0);
+    let subsidy = params.consensus.subsidy_initial.checked_shr(halvings).unwrap_or(0);
     // 价值=区块补贴+手续费累计
     let value = total_fees
         .checked_add(subsidy)
@@ -121,16 +118,12 @@ fn get_block_value(state: &NodeState, total_fees: u64, height: u32) -> Result<u6
 }
 
 /// 当前阶段先沿用父区块难度，后续替换为 `pow::get_next_work_required`。
-fn get_nbits(state: &NodeState) -> Result<u32, MiningError> {
+fn get_nbits(params: &Params, state: &NodeState) -> Result<u32, MiningError> {
     // let x = &state.chain;
     // let y = state.chain.best_index().ok_or(MiningError::BestIndexNotFound)?;
     // let z = &state.params;
 
-    let nbits = get_next_work_required(
-        &state.chain,
-        state.chain.best_index().ok_or(MiningError::BestIndexNotFound)?,
-        &state.params,
-    )?;
+    let nbits = get_next_work_required(params, &state.chain, state.chain.best_index().ok_or(MiningError::BestIndexNotFound)?)?;
     Ok(nbits)
 }
 
