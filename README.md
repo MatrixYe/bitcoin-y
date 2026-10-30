@@ -13,3 +13,8 @@
 - [Serialized Blocks](https://developer.bitcoin.org/reference/block_chain.html#serialized-blocks)
 - [Bitcoin Core `block.h`](https://doxygen.bitcoincore.org/block_8h_source.html)
 - [Bitcoin Core `serialize.h`](https://doxygen.bitcoincore.org/serialize_8h_source.html)
+
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
